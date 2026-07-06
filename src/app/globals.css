@@ -1,0 +1,56 @@
+@import "tailwindcss";
+
+/* ==========================================================================
+   Design tokens
+   Base theme:Sage Theme A335(全域 skill sage-theme-uiux)
+   Booking 延伸:docs/design/booking-ui-extensions.md §1、§2
+   ========================================================================== */
+
+:root {
+  /* --- base 色(每店可覆寫;由 shop.config.ts → layout.tsx 注入 inline style 覆寫)--- */
+  --color-primary: #a3b5a1; /* sage green(template 預設;雪板店由 config 換冰川藍) */
+  --color-secondary: #d2b48c;
+  --color-bg: #f8f5f0;
+  --color-surface: #ffffff;
+  --color-text: #333333;
+  --color-muted: #8a8a82;
+
+  /* --- 狀態語意色(全 template 統一,每店不可覆寫;§2)--- */
+  --status-available: #6b8e5a; /* 有位 */
+  --status-full: #c17b6f; /* 已滿 */
+  --status-pending: #d4a95e; /* 待確認 */
+  --status-closed: #c9c9c0; /* 休息 / 關閉 */
+  --status-cancelled: #9b9b93; /* 已取消 */
+}
+
+/* Tailwind v4 theme 對接:utility(bg-primary、text-status-full…)
+   一律引用上方 CSS variables,元件內不 hardcode hex。 */
+@theme inline {
+  --color-primary: var(--color-primary);
+  --color-secondary: var(--color-secondary);
+  --color-bg: var(--color-bg);
+  --color-surface: var(--color-surface);
+  --color-text: var(--color-text);
+  --color-muted: var(--color-muted);
+
+  --color-status-available: var(--status-available);
+  --color-status-full: var(--status-full);
+  --color-status-pending: var(--status-pending);
+  --color-status-closed: var(--status-closed);
+  --color-status-cancelled: var(--status-cancelled);
+}
+
+@theme {
+  /* 繁中字體階層:標題 serif、內文 sans(系統字體,不依賴網路載入) */
+  --font-sans:
+    "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", ui-sans-serif,
+    system-ui, sans-serif;
+  --font-serif: "Noto Serif TC", "PingFang TC", Georgia, ui-serif, serif;
+}
+
+body {
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-sans);
+  line-height: 1.7;
+}
