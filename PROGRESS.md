@@ -9,13 +9,28 @@
 |---|---|---|---|
 | P0 | Planning docs | ✅ Done | `main` `70e6715` |
 | P1 | Scaffold + 8-table schema + seed | ✅ Done (reviewed + fixed) | `p1-project-scaffold` `26f77e7`+`fc7d889` → [PR #1](https://github.com/codekaburra/booking-system/pull/1) (open) |
-| P2 | Weekly timetable (shop/resource views, RWD, overrides) | 🔨 Implemented, review in progress | `p2-timetable` (stacked on P1) |
+| P2 | Weekly timetable (shop/resource views, RWD, overrides) | 🟡 Implemented + self-verified; **independent review PENDING** | `p2-timetable` (stacked on P1) |
 | P3 | Booking form (Mode A multi-preference) + client dedup + status page | ⬜ Not started | |
 | P4 | Admin core (auth, approval w/ overbooking guard, email, manual booking/cancel) | ⬜ Not started | |
 | P5 | Client login + My bookings + settings admin + special dates | ⬜ Not started | |
 | P6 | Polish (reminders, self-cancel, slot generation cron, channels) | ⬜ Not started | |
 | P7 | Google Calendar one-way push | ⬜ Not started | |
 | P8 | Instant mode B (time-range booking, anti-overlap) | ⬜ Not started | |
+
+## ⚠️ Next action (as of 2026-07-07)
+
+P2 is implemented and self-verified by the developer (build/lint pass, 18 offline
+assertions on timezone/override priority, preview checked on desktop+mobile), but the
+**independent review has not run yet** (session limit). To run it, give a read-only
+reviewer (role: `.claude/agents/reviewer.md`) this scope:
+
+- Files: `src/lib/tz.ts`, `src/lib/timetable.ts`, `src/lib/data/*`, `src/app/timetable/`,
+  `src/components/timetable/*`, `src/components/site-chrome.tsx`, `globals.css` diff
+- Check: (1) Asia/Taipei correctness incl. server-TZ independence; (2) date_overrides
+  priority contract (see migration + `timetable.ts` header); (3) demo.ts ↔ seed.sql parity;
+  service-role key never in client bundle; (4) design spec §2 §3 (status fills + text,
+  resource stripe only, no hardcoded hex, ≥44px targets); (5) server/client split.
+- Then fix 🔴/🟡 findings via developer role and update this section.
 
 ## Fixed workflow for every phase
 
