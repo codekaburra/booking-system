@@ -1,369 +1,370 @@
-# 預約系統 Booking System — 規劃書 (PLAN)
+# Booking System — Plan
 
-> 純規劃文件,尚未寫 code。一套可複製到多間店、**什麼生意都能套**的預約系統 template。
-> 範例情境 A(申請制):雪板學校 — 學生看週曆 → 填表選多個志願時段 → 老闆確認 → 通知。
-> 範例情境 B(即時制):自助 gym / pilates / yoga — 客人選房間 + 起始時間 + 時長(30/45/60 分)→ 立即確認。
+> Planning document. A booking-system template that can be cloned and applied to many shops and business types.
+> Example scenario A (request mode): snowboard school — student views weekly timetable → submits form with multiple preferred time slots → owner confirms → notification.
+> Example scenario B (instant mode): self-service gym / pilates / yoga — customer picks a room + start time + duration (30/45/60 min) → instantly confirmed.
 
-最後更新:2026-07-06 | **開發進度與接手指南見 [PROGRESS.md](PROGRESS.md)**
-
----
-
-## 1. 專案目標
-
-- 做一套**預約系統 template**,可套用到多間不同的店、不同型態的生意。
-- 核心抽象:**可預約資源(resource)**+ **兩種預約模式**:
-  - **資源** = 教練(課程店)或 房間(自助設施)或 器材…,介面稱呼由 config 決定。
-  - **模式 A 申請制**:多志願 → 老闆確認(雪板課、有教練的課程店)。
-  - **模式 B 即時制**:選資源 + 起始時間 + 時長 → 立即確認(自助 gym / pilates / yoga 小房間)。
-- 不同店有不同**服務項目**、不同**時長**、不同**容納人數**、不同**資源**。
-- 兩個核心畫面:
-  1. **週曆 Timetable** — 顯示每週每天「已約 / 空位」(整店 / 單一資源視角)。
-  2. **預約表單** — 模式 A 勾多個志願;模式 B 選起始時間 + 時長。
-- 為台灣的店設計(時區 `Asia/Taipei`、繁體中文、台灣金流/通知習慣、**國定假日處理**)。
+Last updated: 2026-07-07 | **Development progress & handoff guide: [PROGRESS.md](PROGRESS.md)**
 
 ---
 
-## 2. 技術棧與基礎設施
+## 1. Project Goals
 
-| 層 | 採用 |
+- Build a **booking-system template** reusable across many shops and business types.
+- Core abstractions: **bookable resource** + **two booking modes**:
+  - **Resource** = instructor (course shops) or room (self-service facilities) or equipment…; the UI label is set in config.
+  - **Mode A — Request**: multiple preferences → owner approves (snowboard lessons, instructor-based shops).
+  - **Mode B — Instant**: pick resource + start time + duration → instantly confirmed (self-service gym/pilates/yoga rooms).
+- Each shop has its own **services**, **durations**, **capacities**, and **resources**.
+- Two core screens:
+  1. **Weekly Timetable** — booked / free per day per week (whole-shop / single-resource views).
+  2. **Booking form** — Mode A: tick multiple preferred slots; Mode B: pick start time + duration.
+- Designed for shops in Taiwan (timezone `Asia/Taipei`, Traditional Chinese UI, Taiwan payment/notification habits, **national holiday handling**).
+
+---
+
+## 2. Tech Stack & Infrastructure
+
+| Layer | Choice |
 |---|---|
-| 前端 + 後端 | **Next.js (React)** + Tailwind CSS(RWD,手機優先) |
-| 資料庫 | **PostgreSQL,由 Supabase 託管** |
-| 登入 | **Supabase Auth**(guest / client / admin) |
-| 部署 | **Vercel** |
-| 檔案(教練照片、logo) | Supabase Storage |
-| Email 通知 | Resend(免費額度) |
-| WhatsApp 通知(選配) | WhatsApp Business API / Twilio |
-| LINE 通知(選配) | LINE Messaging API(官方帳號) |
-| Google Calendar(P7) | Google Service Account + Calendar API |
+| Frontend + backend | **Next.js (React)** + Tailwind CSS (RWD, mobile-first) |
+| Database | **PostgreSQL, hosted on Supabase** |
+| Auth | **Supabase Auth** (guest / client / admin) |
+| Deployment | **Vercel** |
+| Files (instructor photos, logo) | Supabase Storage |
+| Email notifications | Resend (free tier) |
+| WhatsApp notifications (optional) | WhatsApp Business API / Twilio |
+| LINE notifications (optional) | LINE Messaging API (Official Account) |
+| Google Calendar (P7) | Google Service Account + Calendar API |
 
-> **平台帳號**:Supabase、Vercel 各只開 **1 個帳號**,多間店是底下的多個專案。
-> **網域**:每店一個網址(一年約 NT$300–500)。
-> 起步基本上走免費額度,規模大了再升付費。
+> **Platform accounts**: exactly **one** Supabase account and **one** Vercel account; each shop is a separate project under them.
+> **Domain**: one per shop (~NT$300–500/year).
+> Start on free tiers; upgrade only when usage grows.
 
-### 不採用 / 已排除
-- ❌ 多租戶單一部署(改用每店分開 deploy,見 §3)
-- ❌ AWS(改用 Supabase + Vercel,較省事)
-- ❌ Cloudflare 全家桶 / D1(維持 PostgreSQL;Cloudflare 之後最多當 CDN,選配)
-- ❌ Notion 當顯示層
-- ❌ Google Calendar 雙向同步(只做單向推送)
-- ❌ LINE Login(改為免登入也能 book)
-- ❌ PHP / OpenCart 電商式賣課(需求是真正的時段預約)
+### Explicitly excluded
+- ❌ Multi-tenant single deployment (using per-shop deploys instead, see §3)
+- ❌ AWS (Supabase + Vercel is simpler for this project)
+- ❌ Cloudflare full stack / D1 (keep PostgreSQL; Cloudflare at most as optional CDN later)
+- ❌ Notion as display layer
+- ❌ Google Calendar two-way sync (one-way push only)
+- ❌ LINE Login (booking works without login instead)
+- ❌ PHP / OpenCart e-commerce style course selling (we need true time-slot booking)
 
 ---
 
-## 3. 部署模式:每店分開 deploy
+## 3. Deployment Model: One Deploy per Shop
 
-每間店 = 一個獨立部署,實體隔離(隔離性最強、可大幅客製)。
+Each shop = an independent deployment, physically isolated (strongest isolation, allows heavy per-shop customization).
 
 ```
-template repo (一份核心程式)
-   │  branch-per-shop(建議:核心改一次 → merge 進各店 branch)
-   ├── 雪板店  branch → 自己的 Supabase 專案 → 部署到 snowboard.com
-   ├── 瑜伽店  branch → 自己的 Supabase 專案 → 部署到 yoga.com
+template repo (one core codebase)
+   │  branch-per-shop (fix once on core → merge into shop branches)
+   ├── snowboard shop branch → its own Supabase project → deployed to snowboard.com
+   ├── yoga shop branch      → its own Supabase project → deployed to yoga.com
    └── ...
 ```
 
-### 讓 N 個部署不那麼累
-- 平台帳號各 1 個(Supabase / Vercel),登入一次看全部專案。
-- **branch-per-shop**:同一 repo 開不同 branch,核心修一次 merge 到各店,不維護 N 份碼。
-- 命名規則:`booking-雪板`、`booking-瑜伽`…。
-- **開新店 checklist**(目標 10 分鐘內):
-  1. 建 Supabase 專案
-  2. 跑建表腳本(schema)
-  3. 跑 seed 建一個 admin 帳號
-  4. 填 `.env` + 改 `shop.config.ts`
-  5. Vercel 接上對應 branch / repo
+### Keeping N deployments manageable
+- One platform account each (Supabase / Vercel); log in once, see all projects.
+- **branch-per-shop**: one repo, core fixes merge into each shop branch — no N copies of the code.
+- Naming convention: `booking-snowboard`, `booking-yoga`, …
+- **New-shop checklist** (target: under 10 minutes):
+  1. Create Supabase project
+  2. Run schema migrations
+  3. Run seed to create an admin account
+  4. Fill `.env` + edit `shop.config.ts`
+  5. Connect the branch/repo to Vercel
 
-### 每店差異放哪
-| 類型 | 位置 | 例子 |
+### Where per-shop differences live
+| Type | Location | Examples |
 |---|---|---|
-| 靜態品牌設定 | `shop.config.ts` + `.env` | 店名、logo、時區、主色、開啟的通知管道、Google 設定 |
-| 營運資料 | 各店 Supabase(後台可改) | 課程、時長、容量、開放時間、教練、預約 |
+| Static brand config | `shop.config.ts` + `.env` | Shop name, logo, timezone, primary color, enabled notification channels, Google settings |
+| Operational data | Each shop's Supabase (editable in admin UI) | Services, durations, capacities, opening hours, resources, bookings |
 
 ---
 
-## 4. 使用者角色
+## 4. User Roles
 
-| 角色 | 登入? | 能做什麼 |
+| Role | Login? | Capabilities |
 |---|---|---|
-| **訪客 guest** | 不用 | 直接 book(**手機號必填**)→ 拿 booking id + 收通知 |
-| **客戶 client** | 可登入 | 登入後 book(資料自動帶入)+ 看「我的預約」歷史 |
-| **老闆 admin** | 要登入 | 審核預約、管理課程/教練/開放時間、看所有客戶 |
+| **Guest** | No | Book directly (**phone number required**) → gets booking id + notification |
+| **Client** | Optional | Books with autofilled info + sees "My bookings" history |
+| **Admin (owner)** | Required | Approves bookings, manages services/resources/hours, sees all clients |
 
-> 登入用 Supabase Auth,以 `role` 區分。客戶登入是選配便利功能;不登入照樣能 book(免登入降低 friction)。
+> Auth via Supabase Auth with a `role` distinction. Client login is an optional convenience; booking always works without login (low friction).
 
 ---
 
-## 5. 資料表(8 張)
+## 5. Database Tables (8)
 
-> 因每店分開部署,**不需要** `shop_id` 與多租戶 RLS。
+> Because of per-shop deployment there is **no** `shop_id` and no multi-tenant RLS.
 
 ```
 clients ──< booking_requests ──< request_slots >── slots >── resources
-                     │(approved 後帶 resource_id     └────── courses
+                     │ (on approve gets resource_id      └── courses
                      │  + starts_at/ends_at)
 availability_rules ── resources
-date_overrides ────── resources(可空 = 全店)
+date_overrides ────── resources (nullable = whole shop)
 ```
 
-### clients(客戶)
-| 欄位 | 說明 |
+### clients
+| Column | Notes |
 |---|---|
-| id | client_id |
-| name | 姓名 |
-| phone | **必填、唯一**(用來歸戶:同手機 = 同一人) |
-| email | 選填 |
-| line_user_id | 選填(LINE 通知用) |
+| id | client id |
+| name | |
+| phone | **required, unique** (dedup key: same phone = same person) |
+| email | optional |
+| line_user_id | optional (for LINE notifications) |
 | preferred_channel | email / whatsapp / line |
-| auth_user_id | 登入後綁 Supabase Auth;訪客留空 |
-| note | 備註 |
+| auth_user_id | linked to Supabase Auth after signup; null for guests; **unique** |
+| note | |
 | created_at | |
 
-### courses(課程)
-| 欄位 | 說明 |
+### courses (services)
+| Column | Notes |
 |---|---|
 | id | |
-| name | 課程名稱(私人課 / 團體課…) |
-| duration_min | **上課時長(分鐘)** |
-| capacity | **每堂容納人數**(1 = 私人;8 = 團體) |
-| price | 價格 |
-| is_active | 是否啟用 |
+| name | e.g. Private lesson / Group lesson |
+| duration_min | **lesson/session length in minutes** |
+| capacity | **people per session** (1 = private; 8 = group) |
+| price | |
+| is_active | |
 
-### resources(可預約資源:教練 / 房間 / 器材)
-| 欄位 | 說明 |
+### resources (bookable resource: instructor / room / equipment)
+| Column | Notes |
 |---|---|
 | id | |
-| type | instructor / room / equipment(介面稱呼由 `shop.config.ts` 決定) |
-| name | 名稱(小明教練 / 房間A) |
-| photo | 照片 |
-| color | 週曆顯示顏色 |
-| is_active | 停用 = 離職/房間維修 |
-| gcal_calendar_id | 公司為此資源建立的 Google 行事曆 ID(P7) |
+| type | instructor / room / equipment (UI label set in `shop.config.ts`) |
+| name | e.g. Coach Ming / Room A |
+| photo | |
+| color | calendar display color |
+| is_active | false = resigned / under maintenance |
+| gcal_calendar_id | Google calendar created by the company for this resource (P7) |
 
-### availability_rules(開放時間,每週重複)
-| 欄位 | 說明 |
+### availability_rules (weekly recurring opening hours)
+| Column | Notes |
 |---|---|
 | id | |
-| resource_id | **每個資源各自的開放時段** |
-| weekday | 週幾 |
-| start_time / end_time | 開放時段 |
+| resource_id | **each resource has its own availability** |
+| weekday | |
+| start_time / end_time | |
 
-### date_overrides(特殊日期:國定假日 / 公休 / 請假 / 加開)⭐
-| 欄位 | 說明 |
+### date_overrides (special dates: national holidays / shop closure / leave / extra opening) ⭐
+| Column | Notes |
 |---|---|
 | id | |
-| date | 特定日期 |
-| resource_id | **可空 = 全店**(國定假日、公休);指定 = 單一資源(教練請假、房間維修) |
-| type | closed(整天休)/ special_hours(改時段)/ extra_open(加開) |
-| start_time / end_time | type 為 special_hours / extra_open 時使用 |
-| reason | 顯示用(春節、颱風、請假…) |
+| date | |
+| resource_id | **null = whole shop** (holidays, closure); set = single resource (instructor leave, room maintenance) |
+| type | closed / special_hours / extra_open |
+| start_time / end_time | used by special_hours / extra_open |
+| reason | display text (Lunar New Year, typhoon, leave…) |
 
-> **國定假日處理**:每年把台灣政府行政機關辦公日曆表(公開資料)匯入成全店 date_overrides,老闆再逐日調整(例:國定假日照常營業但改短時段、或加開)。優先權:date_overrides > availability_rules。
+> **National holidays**: import Taiwan government office calendar (open data) yearly into shop-wide date_overrides; owner then adjusts day by day (e.g. open with shorter hours, or extra opening). Priority contract: date_overrides > availability_rules; closed > special_hours > extra_open; resource-level > shop-level.
 
-### slots(實際時段;模式 A 用,由 rules × 課程時長生成)
-| 欄位 | 說明 |
+### slots (concrete sessions; Mode A, generated from rules × course duration)
+| Column | Notes |
 |---|---|
 | id | |
 | course_id | |
-| resource_id | 屬於哪個資源 |
+| resource_id | |
 | starts_at / ends_at | |
-| capacity | 該堂容量 |
-| booked_count | 已確認人數(防超賣關鍵) |
+| capacity | |
+| booked_count | confirmed count (overbooking guard) |
 
-### booking_requests(預約)
-| 欄位 | 說明 |
+### booking_requests (bookings)
+| Column | Notes |
 |---|---|
 | id | |
 | client_id | FK → clients |
-| booking_id | 對外公開碼(例 BK-20260630-A1B2),也是回查憑證 |
+| booking_id | public code (e.g. BK-20260630-A1B2), also the lookup credential |
 | status | pending / approved / rejected / cancelled / completed |
-| course_id | 服務項目 |
-| resource_id | **確定後的資源**(模式 A approve 時填入;模式 B 建立時即有) |
-| starts_at / ends_at | **確定後的時間範圍**(同上;模式 B 的防重疊檢查靠這兩欄) |
-| note | 客人備註 |
-| notify_channel / notified_at | 通知記錄 |
-| gcal_event_id | 資源行事曆事件(P7) |
-| company_gcal_event_id | 公司總行事曆事件(P7) |
+| course_id | |
+| resource_id | **final resource** (Mode A: filled on approve; Mode B: set at creation) |
+| starts_at / ends_at | **final time range** (same as above; Mode B overlap checks use these) |
+| note | |
+| notify_channel / notified_at | notification log |
+| gcal_event_id | resource calendar event (P7) |
+| company_gcal_event_id | company calendar event (P7) |
 
-> **兩模式殊途同歸**:模式 A 走 request_slots 多志願,approve 時把選定 slot 的 resource/時間寫回本表;模式 B 直接寫本表(status 即 approved)。之後的「我的預約、通知、提醒、取消、Google Calendar」全部共用。
+> **Both modes converge**: Mode A goes through request_slots preferences and writes the chosen slot's resource/time back on approve; Mode B writes this table directly (status = approved). Everything downstream — My bookings, notifications, reminders, cancellation, Google Calendar — is shared.
 
-### request_slots(申請 ↔ 多個志願時段)
-| 欄位 | 說明 |
+### request_slots (booking ↔ multiple preferred slots; Mode A)
+| Column | Notes |
 |---|---|
 | request_id | FK → booking_requests |
 | slot_id | FK → slots |
-| preference_order | 志願序(1、2、3…) |
+| preference_order | 1, 2, 3… |
 
 ---
 
-## 6. 核心預約流程
+## 6. Core Booking Flows
 
-> 每店在 `shop.config.ts` 選 **booking_mode: "request"(申請制)或 "instant"(即時制)**。
+> Each shop sets **booking_mode: "request" or "instant"** in `shop.config.ts`.
 
-### 模式 B:即時制(自助 gym / pilates / yoga 房間)
+### Mode B: Instant (self-service gym / pilates / yoga rooms)
 ```
-客人選 服務項目(定義時長 30/45/60)→ 選房間(或不限)→ 選起始時間(15/30 分格)
-   → 手機必填,比對/建立 client → transaction 檢查該資源該時間範圍無重疊
-   → 直接 approved 占位 + booking_id + 「已確認」通知
+Customer picks service (defines 30/45/60 duration) → room (or any) → start time (15/30-min grid)
+   → phone required, match-or-create client → transaction checks no overlap for that resource/time range
+   → directly approved + booking_id + "confirmed" notification
 ```
-- 可用性動態計算:開放時間(rules + date_overrides)− 已有預約,**不預生成 slots**。
-- 房間 capacity = 1(整間包下)。
+- Availability computed dynamically: opening hours (rules + date_overrides) minus existing bookings; **no pre-generated slots**.
+- Room capacity = 1 (whole room per booking).
 
-### 模式 A:申請制(雪板課、有教練的課程店)
+### Mode A: Request (snowboard lessons, instructor shops)
 ```
-學生填表(選課程 + 勾多個志願時段,手機必填)
-   → 用手機號比對 clients(有→沿用 client_id;無→新建)
-   → 產生 booking_id
-   → 狀態 pending,立即發「已收到」通知(含 booking_id)
+Student fills form (course + multiple preferred slots, phone required)
+   → match clients by phone (existing → same client_id; new → create)
+   → generate booking_id
+   → status pending, send "request received" notification (with booking_id)
         ↓
-老闆後台看到申請(含各志願的即時餘額)
-   → 按「確認這個志願」
-        → 容量檢查(booked_count < capacity?)
-        → transaction:booked_count +1、狀態 approved、其餘志願釋放
-        → 發「已確認」通知;(P7)寫入 Google Calendar
-   → 或「拒絕」→ 狀態 rejected,可附原因 + 通知
+Owner sees the request (each preference with live remaining capacity)
+   → clicks "confirm this preference"
+        → capacity check (booked_count < capacity?)
+        → transaction: booked_count +1, status approved, other preferences released
+        → "confirmed" notification; (P7) push to Google Calendar
+   → or "reject" → status rejected, optional reason + notification
 ```
 
-**關鍵**:approve 當下才占位 + 做 transaction，防止兩人同搶最後一位造成超賣。
+**Key**: the seat is only taken at approve time, inside a transaction — prevents overbooking when two students race for the last seat.
 
-### Admin 手動建立預約(電話 / LINE 私訊 / walk-in)
-現實中很多客人用電話或私訊約課。老闆可在後台**直接建立預約**:
-選時段 → 填姓名 + 手機(同樣走 clients 歸戶)→ 直接 approved 占位(不走 pending)。
+### Admin manual booking (phone / LINE DM / walk-in)
+Many customers book by phone or DM. The owner can **create a booking directly in the admin UI**:
+pick slot → enter name + phone (same client dedup) → directly approved (skips pending).
 
-### 取消 / 改期
-- **先做最簡版(P4)**:學生聯絡店家,老闆在後台取消 → `booked_count -1`、狀態 cancelled、發通知、(P7)刪 Google 事件。
-- **學生自助取消(P6)**:用手機 + booking_id 進「我的預約」自行取消;受**取消政策**限制(開課前 N 小時內不可取消,N 放 `shop.config.ts`,每店可設)。
-- **改期** = 取消 + 重新預約(不做原地改期,邏輯最單純)。老闆後台可代客改期(取消舊的 + 手動建新的)。
+### Cancellation / reschedule
+- **Minimal version first (P4)**: customer contacts the shop; owner cancels in admin → `booked_count -1`, status cancelled, notification, (P7) delete calendar events.
+- **Self-service cancellation (P6)**: customer uses phone + booking_id via "My bookings"; subject to **cancellation policy** (no cancellation within N hours before start; N in `shop.config.ts`).
+- **Reschedule** = cancel + rebook (no in-place edit; simplest logic). Owner can do it on behalf of a customer.
 
-### Slot 產生策略(模式 A)
-- 排程**每天自動往前滾動生成 4 週**的 slots(rules × 課程時長,**套用 date_overrides**:closed 不生、special_hours 改生、extra_open 加生)。
-- 老闆修改開放時間 / 新增 date_override → 只重生「未來且無人預約」的 slots;已有預約的 slot 不動,列出衝突讓老闆手動處理。
-- 排程用 Vercel Cron(免費額度內)。
+### Slot generation strategy (Mode A)
+- A scheduled job **rolls forward 4 weeks of slots daily** (rules × course duration, **applying date_overrides**: closed → skip, special_hours → adjust, extra_open → add).
+- When the owner edits hours / adds an override → only regenerate **future slots with no bookings**; slots with bookings are untouched and conflicts are listed for manual handling.
+- Scheduler: Vercel Cron (free tier).
 
-### 資源請假 / 臨時停用(教練請假、房間維修)
-- 老闆後台對某資源新增 date_override(closed / special_hours)。
-- 若該範圍**已有預約** → 系統列出受影響清單,老闆逐筆處理:取消(退款/通知)或代客改期。
-- 與「修改開放時間」共用同一套衝突處理邏輯(P5 一起做)。
+### Resource leave / temporary closure (instructor sick day, room maintenance)
+- Owner adds a date_override (closed / special_hours) for that resource.
+- If bookings exist in the affected range → system lists them; owner handles each: cancel (notify) or reschedule.
+- Shares the conflict-handling logic with "edit opening hours" (built together in P5).
 
-### 國定假日
-- 每年匯入台灣政府辦公日曆 → 產生全店 date_overrides(預設 closed),老闆可逐日改成照常營業 / 特別時段 / 加開。
-- 週曆上特殊日期顯示標記(例:「春節休」)。
-
----
-
-## 7. 畫面(8 個)
-
-### 客人端
-1. **週曆 Timetable**(唯讀,RWD)
-   - 視角 A:整店總覽(所有資源疊在一起,用顏色區分)
-   - 視角 B:單一資源(某位教練 / 某間房的一週)
-   - 🟢有位 / 🔴已滿 / ⚪休息;特殊日期顯示標記(春節休…);模式 A 顯示 `已約/總數`
-   - 手機:一次一天、左右滑
-2. **預約表單**
-   - 模式 A:① 選課程 → ② 勾**多個**心儀時段(只列有位的,自動標志願序)→ ③ 填姓名+手機(Email 選填)
-   - 模式 B:① 選服務(時長 30/45/60)→ ② 選房間(或不限)+ 起始時間 → ③ 填姓名+手機 → 立即確認
-   - 登入時自動帶入資料
-3. **送出狀態頁** — 顯示志願 + 「等待確認」+ booking_id(可截圖/回查)
-4. **我的預約** — 即將到來 / 已完成清單
-   - 登入 → 直接看;未登入 → 手機 + booking_id 進入
-
-### 老闆端(需登入)
-5. **申請審核** — 看學生多志願 + 各志願即時餘額,一鍵確認/拒絕(含容量檢查);可**手動建立預約**(電話/walk-in 客人)、取消/代客改期
-6. **課程 + 開放時間 + 資源管理** — 改服務時長/容量/價格、每週開放時段、資源(教練/房間:顏色、停用、連 Google)、**特殊日期管理**(國定假日匯入、公休、請假/維修 + 受影響預約的衝突處理)
-7. **客戶管理** — 客戶清單 + 點進看單一客戶的 session 清單(admin 視角)
-8. **登入 / 註冊頁** — 客戶與 admin 登入(依 role 導向)
+### National holidays
+- Yearly import of the Taiwan government office calendar → shop-wide date_overrides (default closed); owner can flip individual days to open / special hours / extra opening.
+- Timetable shows a label on special dates (e.g. "Lunar New Year — closed").
 
 ---
 
-## 8. 通知設計
+## 7. Screens (8)
 
-| 管道 | 接法 | 備註 |
+### Customer-facing
+1. **Weekly Timetable** (read-only, RWD)
+   - View A: whole shop (all resources overlaid, distinguished by color)
+   - View B: single resource (one instructor's / room's week)
+   - 🟢 available / 🔴 full / ⚪ closed; special-date labels; Mode A shows `booked/total`
+   - Mobile: one day at a time, swipe left/right
+2. **Booking form**
+   - Mode A: ① pick course → ② tick **multiple** preferred slots (only ones with space; auto-numbered by preference) → ③ name + phone (email optional)
+   - Mode B: ① pick service (30/45/60) → ② pick room (or any) + start time → ③ name + phone → instant confirm
+   - Logged-in clients get autofill
+3. **Submission status page** — preferences + "awaiting confirmation" + booking_id (screenshot-able, used for lookup)
+4. **My bookings** — upcoming / past list
+   - Logged in → direct; not logged in → phone + booking_id
+
+### Owner-facing (login required)
+5. **Request inbox** — preferences with live remaining capacity, one-click confirm/reject (with capacity check); **manual booking** (phone/walk-in), cancel / reschedule on behalf
+6. **Services + hours + resource management** — durations/capacities/prices, weekly hours, resources (colors, deactivate, Google link), **special dates management** (holiday import, closures, leave/maintenance + conflict handling for affected bookings)
+7. **Client management** — client list + per-client session history (admin view)
+8. **Login / signup** — clients and admin (role-based redirect)
+
+---
+
+## 8. Notifications
+
+| Channel | Integration | Notes |
 |---|---|---|
-| **Email** | Resend | 必做,每月幾千封內免費 |
-| **WhatsApp** | WhatsApp Business API / Twilio | 按則收費(每則約幾毛~一塊) |
-| **LINE** | LINE Messaging API(官方帳號) | 有免費額度;主動推播需對方先加好友 |
+| **Email** | Resend | required; free tier covers thousands/month |
+| **WhatsApp** | WhatsApp Business API / Twilio | pay per message (~NT$0.5–2) |
+| **LINE** | LINE Messaging API (Official Account) | free tier; push requires the user to have friended the OA |
 
-- 開啟哪些管道 → `shop.config.ts`(每店可不同)。
-- 客戶可選 `preferred_channel`;手機號因三管道都可能用到,**一律必填**。
-- 通知時機:
-  1. 送出時(已收到 + booking_id)
-  2. admin 確認 / 拒絕時
-  3. 取消時
-  4. **上課前一天自動提醒**(P6,Vercel Cron 排程;減少 no-show 最有效的功能)
-
----
-
-## 9. Google Calendar 整合(P7,單向推送)
-
-模型:**公司一個 Google 帳號(Service Account)擁有所有行事曆,教練只唯讀訂閱。**(泛化後 = 每個資源一本;房間型資源不需分享給任何人,純供老闆總覽)
-
-```
-公司 Service Account(唯一一組憑證)
-   ├── 擁有:教練-小明 行事曆 → 分享(唯讀)給小明
-   ├── 擁有:教練-阿華 行事曆 → 分享(唯讀)給阿華
-   └── 擁有:公司總行事曆       → 老闆訂閱(永遠看全部)
-```
-
-- 系統用公司憑證即可寫進上述任一本(都是它擁有的)。
-- 確認預約 → 寫「教練那本」+「公司總本」,各存 event_id;改期/取消 → 用 event_id 更新/刪除。
-- **優點**:不需每位教練 OAuth;token 不會因人員異動失效;**新增/離職不用改任何訂閱**。
-- 單向(系統 → 行事曆),不讀教練私人行程。
-- 設定放 `.env`:`GOOGLE_SERVICE_ACCOUNT_KEY`、`COMPANY_GCAL_ID`。
-- 注意:Service Account 建立/擁有行事曆在 Google Workspace 帳號下最穩。
+- Enabled channels → `shop.config.ts` (per shop).
+- Clients pick `preferred_channel`; phone is **always required** since all channels may need it.
+- Notification moments:
+  1. On submission (received + booking_id)
+  2. On admin confirm / reject
+  3. On cancellation
+  4. **Reminder one day before the session** (P6, Vercel Cron; the single best anti-no-show feature)
 
 ---
 
-## 10. 分階段開發
+## 9. Google Calendar Integration (P7, one-way push)
 
-| 階段 | 內容 |
+Model: **one company Google account (Service Account) owns all calendars; instructors only subscribe read-only.**
+(Generalized: one calendar per resource; room-type resources don't need sharing — they exist for the owner's overview.)
+
+```
+Company Service Account (single credential)
+   ├── owns: "Coach Ming" calendar   → shared read-only with Ming
+   ├── owns: "Coach Hua" calendar    → shared read-only with Hua
+   └── owns: company master calendar → owner subscribes (always sees everything)
+```
+
+- The system writes to any of these calendars using the company credential (it owns them all).
+- On booking confirm → create events in the resource calendar + company calendar, store both event ids; reschedule/cancel → update/delete via those ids.
+- **Benefits**: no per-instructor OAuth; no tokens that die on staff turnover; **hiring/leaving never touches any subscription** — the owner's subscription is permanent.
+- One-way only (system → calendar); instructors' private events are never read.
+- Config in `.env`: `GOOGLE_SERVICE_ACCOUNT_KEY`, `COMPANY_GCAL_ID`.
+- Note: Service Accounts owning calendars works best under Google Workspace.
+
+---
+
+## 10. Phases
+
+| Phase | Scope |
 |---|---|
-| **P1 地基** | Supabase schema(8 張表,含 resources / date_overrides)+ 雪板店 demo 種子資料 |
-| **P2 週曆** | Timetable 唯讀(整店 / 單一資源視角)、RWD、特殊日期標記 |
-| **P3 預約(模式 A)** | 報名表單(多志願)+ 比對/建立 client + 送出 pending + 狀態頁 |
-| **P4 後台核心** | Supabase Auth(admin 登入)+ 審核 + 容量檢查 + booking_id + Email 通知 + **admin 手動建預約 / 取消**(流程閉環) |
-| **P5 客戶 + 設定** | 客戶登入/註冊 + 「我的預約」+ 課程/資源/開放時間後台 + **特殊日期管理(假日匯入、請假/維修 + 衝突處理)** + 客戶管理 + `shop.config.ts` 抽離(template 化) |
-| **P6 打磨** | 主色客製、手機打磨、**上課前提醒**、**客人自助取消(含取消政策)**、(選配)WhatsApp / LINE 通知 |
-| **P7 行事曆** | Google Calendar 單向推送(資源本 + 公司總本) |
-| **P8 即時制(模式 B)** | 起始時間 + 時長的即時預約、動態可用性計算、防重疊 transaction → 套用到自助 gym / pilates / yoga 店(此時金流優先級提高) |
+| **P1 Foundation** | Supabase schema (8 tables incl. resources / date_overrides) + snowboard demo seed |
+| **P2 Timetable** | Read-only weekly timetable (whole-shop / single-resource views), RWD, special-date labels |
+| **P3 Booking (Mode A)** | Multi-preference form + client dedup + pending submission + status page |
+| **P4 Admin core** | Supabase Auth (admin login) + approval + capacity check + booking_id + email notifications + **manual booking / cancel** (closes the loop) |
+| **P5 Clients + settings** | Client signup/login + My bookings + services/resources/hours admin + **special dates (holiday import, leave/maintenance + conflict handling)** + client management + extract `shop.config.ts` (template-ization) |
+| **P6 Polish** | Per-shop theming, mobile polish, **pre-session reminders**, **self-service cancellation (with policy)**, optional WhatsApp / LINE |
+| **P7 Calendar** | Google Calendar one-way push (resource + company calendars) |
+| **P8 Instant mode (Mode B)** | Start-time + duration booking, dynamic availability, anti-overlap transaction → self-service gym/pilates/yoga (payments become higher priority here) |
 
 ---
 
-## 11. 開發流程(subagent 分工)
+## 11. Development Workflow (subagents)
 
-每個階段(P1–P8)的開發一律走 **developer / reviewer 雙 subagent** 流程:
+Every phase (P1–P8) uses the **developer / reviewer dual-subagent** flow:
 
 ```
-1. developer subagent  → 依 PLAN.md 實作該階段功能
-2. reviewer subagent   → 獨立 review(正確性、防超賣/防重疊邏輯、schema 一致性、RWD)
-3. reviewer 發現問題   → developer 修正 → 再 review,通過才算完成該階段
+1. developer subagent  → implements the phase per PLAN.md
+2. reviewer subagent   → independent review (correctness, overbooking/overlap logic, schema consistency, RWD)
+3. issues found        → developer fixes → re-review; phase is done only when it passes
 ```
 
-- Agent 定義放 `.claude/agents/developer.md` 與 `.claude/agents/reviewer.md`。
-- reviewer 只讀不寫(read-only),確保 review 獨立性;修正一律回到 developer 做。
-- 特別要求 reviewer 盯:transaction 防超賣(模式 A)、時間範圍防重疊(模式 B)、時區 `Asia/Taipei`、date_overrides 優先權。
+- Agent definitions: `.claude/agents/developer.md`, `.claude/agents/reviewer.md`.
+- The reviewer is read-only to keep the review independent; all fixes go through the developer.
+- Reviewer especially watches: overbooking transaction (Mode A), time-range overlap (Mode B), `Asia/Taipei` timezone, date_overrides priority.
 
-## 12. 設計規範(UI/UX)
+## 12. Design Spec (UI/UX)
 
-兩份文件,developer 實作與 reviewer 審查都必須遵守:
+Two documents; both developer and reviewer must follow them:
 
-1. **Base theme**:全域 skill `sage-theme-uiux`(`~/.claude/skills/sage-theme-uiux/SKILL.md`)
-   - Sage Theme A335:淡雅、自然、高級感;配色 60-30-10、字體階層、按鈕/卡片/表單樣式。
-   - 定位:**template 預設主題**(最適合 yoga/pilates/gym);每店靠 CSS variables 換主色(雪板店換藍),排版與中性色規則不變。
-2. **Booking 延伸規範**:[docs/design/booking-ui-extensions.md](docs/design/booking-ui-extensions.md)
-   - Base theme 沒覆蓋的場景:週曆 grid、**狀態語意色 token**(有位/已滿/待確認/休息,全 template 統一、不可覆寫)、志願選擇 chips、狀態 badge、admin 高密度表格、衝突警示、手機單日檢視。
-   - **衝突時以延伸規範為準**(功能辨識優先於淡雅);資源色只做色條/圓點,狀態色才做填色。
+1. **Base theme**: global skill `sage-theme-uiux` (`~/.claude/skills/sage-theme-uiux/SKILL.md`)
+   - Sage Theme A335: calm, natural, premium; 60-30-10 palette, type hierarchy, buttons/cards/forms.
+   - Position: **default template theme** (fits yoga/pilates/gym); each shop overrides the primary color via CSS variables (snowboard shop uses glacier blue); typography and neutrals stay.
+2. **Booking extensions**: [docs/design/booking-ui-extensions.md](docs/design/booking-ui-extensions.md)
+   - Covers what the base theme doesn't: timetable grid, **status color tokens** (available/full/pending/closed — template-wide, not overridable), preference chips, status badges, dense admin tables, conflict warnings, mobile one-day view.
+   - **On conflict, the extension spec wins** (functional recognizability beats subtlety); resource colors are stripes/dots only, status colors are the only fills.
 
-## 13. 待實作時再定的細節
+## 13. Decisions Deferred to Implementation
 
-- ORM:Prisma 或 Supabase client(P1 決定)。
-- 金流(若要線上收費):綠界 ECPay / 藍新 NewebPay / LINE Pay(P6 之後)。
-- 防濫用(免登入):手機格式驗證;必要時加簡訊 OTP 或圖形驗證。
-- Cloudflare:之後若要 CDN/防護再加(選配,免費)。
-- 手機號歸戶的邊界情況:同一手機幫多位家人約課(初期同一 client 即可;日後可加「上課人姓名」欄位)。
-- 候補名單(waitlist):滿堂時排隊遞補(日後視需要)。
-- 課程包 / 堂數卡(買 10 堂慢慢上):台灣課程店常見,牽涉付款 + 扣堂,等訂位流程跑順再加。
-- 報到 / no-show 標記:上完課標記出席,豐富客戶紀錄(初期用備註即可)。
-- 資料匯出 CSV:老闆拉報表用(半天工,要用再加)。
-- 自助設施門禁(智慧鎖 / 密碼):**範圍外**;初期用 booking_id 出示 / 固定密碼解決。
-- 模式 B 的金流(無人設施通常要先付款才算訂到):P8 時評估綠界等。
+- ORM: Prisma vs Supabase client (decide in P1).
+- Payments (if online payment needed): ECPay / NewebPay / LINE Pay (after P6).
+- Anti-abuse (no-login booking): phone format validation; SMS OTP or CAPTCHA if abused.
+- Cloudflare: optional CDN/protection later (free).
+- Phone-dedup edge case: one phone booking for multiple family members (fine as one client initially; add an "attendee name" field later if needed).
+- Waitlist: queue when full (later if needed).
+- Lesson packages / punch cards (buy 10 sessions): common in Taiwan, but involves payments + deduction — after the core flow is stable.
+- Check-in / no-show marking: enriches client history (owner notes suffice initially).
+- CSV export: for owner reports (half a day when needed).
+- Self-service facility door access (smart lock / codes): **out of scope**; use booking_id at the counter / fixed code initially.
+- Mode B payments (unmanned facilities usually require prepayment): evaluate at P8.
