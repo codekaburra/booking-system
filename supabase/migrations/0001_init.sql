@@ -120,7 +120,10 @@ create index availability_rules_resource_id_idx
 
 -- ---------------------------------------------------------------------------
 -- date_overrides(特殊日期:國定假日 / 公休 / 請假 / 加開)
--- 優先權:date_overrides > availability_rules
+-- 優先權合約(P2 週曆與 P5 slot 生成都必須照此解讀):
+--   1. date_overrides > availability_rules
+--   2. override 之間:closed > special_hours > extra_open
+--   3. 層級之間:資源級(resource_id 有值)> 全店級(resource_id 為 null)
 -- ---------------------------------------------------------------------------
 create table public.date_overrides (
   id          uuid primary key default gen_random_uuid(),
@@ -145,8 +148,14 @@ create table public.date_overrides (
   )
 );
 
-create index date_overrides_date_idx
-  on public.date_overrides (date);
+-- 防同日同資源同 type 重複(假日匯入重跑、老闆重複新增)
+-- nulls not distinct:全店級(resource_id = null)同樣受唯一約束
+alter table public.date_overrides
+  add constraint date_overrides_date_resource_type_key
+  unique nulls not distinct (date, resource_id, type);
+
+create index date_overrides_date_resource_idx
+  on public.date_overrides (date, resource_id);
 
 -- ---------------------------------------------------------------------------
 -- slots(實際時段;模式 A 用,由 rules × 課程時長生成)
@@ -162,7 +171,9 @@ create table public.slots (
   created_at   timestamptz not null default now(),
   updated_at   timestamptz not null default now(),
   check (starts_at < ends_at),
-  check (booked_count <= capacity) -- 防超賣底線(approve 仍須 transaction 檢查)
+  check (booked_count <= capacity), -- 防超賣底線(approve 仍須 transaction 檢查)
+  -- 防 cron 滾動生成重跑 / 併發時插出重複 slot;生成邏輯用 on conflict do nothing
+  unique (resource_id, course_id, starts_at)
 );
 
 create index slots_resource_id_starts_at_idx
@@ -211,6 +222,11 @@ create index booking_requests_status_idx
   on public.booking_requests (status);
 
 -- 模式 B 防重疊查詢用:同 resource、approved 的時間範圍
+-- P8 實作模式 B 時應評估升級為 DB 層保證:
+--   create extension btree_gist;
+--   alter table ... add constraint ... exclude using gist
+--     (resource_id with =, tstzrange(starts_at, ends_at) with &&)
+--     where (status = 'approved');
 create index booking_requests_resource_time_idx
   on public.booking_requests (resource_id, starts_at, ends_at)
   where resource_id is not null and status = 'approved';

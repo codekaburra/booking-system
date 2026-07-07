@@ -7,9 +7,10 @@
  * 開新店:改這個檔 + 填 `.env`,不要在其他地方 hardcode 店家資訊。
  */
 
+import type { NotifyChannel, ResourceType } from "@/types/db";
+
 export type BookingMode = "request" | "instant";
-export type ResourceType = "instructor" | "room" | "equipment";
-export type NotifyChannel = "email" | "whatsapp" | "line";
+export type { NotifyChannel, ResourceType };
 
 export interface ShopConfig {
   /** 店名(頁面標題、通知內文) */

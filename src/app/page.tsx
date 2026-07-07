@@ -12,7 +12,7 @@ export default function Home() {
 
   return (
     <div className="flex flex-1 flex-col">
-      <header className="border-b border-status-closed/60 bg-surface">
+      <header className="border-b border-border bg-surface">
         <div className="mx-auto flex max-w-5xl items-center justify-between px-6 py-4">
           <span className="font-serif text-lg font-medium tracking-wide">
             {shopConfig.name}
@@ -50,7 +50,7 @@ export default function Home() {
         </span>
       </main>
 
-      <footer className="border-t border-status-closed/60 bg-surface">
+      <footer className="border-t border-border bg-surface">
         <div className="mx-auto max-w-5xl px-6 py-6 text-center text-xs text-muted">
           {shopConfig.name} · 時區 {shopConfig.timezone}
         </div>
