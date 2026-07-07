@@ -9,7 +9,7 @@
 |---|---|---|---|
 | P0 | Planning docs | ✅ Done | `main` `70e6715` |
 | P1 | Scaffold + 8-table schema + seed | ✅ Done (reviewed + fixed) | `p1-project-scaffold` `26f77e7`+`fc7d889` → [PR #1](https://github.com/codekaburra/booking-system/pull/1) (open) |
-| P2 | Weekly timetable (shop/resource views, RWD, overrides) | 🟡 Implemented + self-verified; **independent review PENDING** | `p2-timetable` (stacked on P1) |
+| P2 | Weekly timetable (shop/resource views, RWD, overrides) | ✅ Done (reviewed + fixed) | `p2-timetable` (stacked on P1) |
 | P3 | Booking form (Mode A multi-preference) + client dedup + status page | ⬜ Not started | |
 | P4 | Admin core (auth, approval w/ overbooking guard, email, manual booking/cancel) | ⬜ Not started | |
 | P5 | Client login + My bookings + settings admin + special dates | ⬜ Not started | |
@@ -19,18 +19,15 @@
 
 ## ⚠️ Next action (as of 2026-07-07)
 
-P2 is implemented and self-verified by the developer (build/lint pass, 18 offline
-assertions on timezone/override priority, preview checked on desktop+mobile), but the
-**independent review has not run yet** (session limit). To run it, give a read-only
-reviewer (role: `.claude/agents/reviewer.md`) this scope:
+**Start P3** (booking form, Mode A). Branch off `p2-timetable` → `p3-booking-form`.
+See PLAN.md §6 (Mode A flow) + §7 screens 2 & 3. Reuses `src/lib/data`, `src/lib/tz.ts`,
+status tokens, `src/components/site-chrome.tsx`.
 
-- Files: `src/lib/tz.ts`, `src/lib/timetable.ts`, `src/lib/data/*`, `src/app/timetable/`,
-  `src/components/timetable/*`, `src/components/site-chrome.tsx`, `globals.css` diff
-- Check: (1) Asia/Taipei correctness incl. server-TZ independence; (2) date_overrides
-  priority contract (see migration + `timetable.ts` header); (3) demo.ts ↔ seed.sql parity;
-  service-role key never in client bundle; (4) design spec §2 §3 (status fills + text,
-  resource stripe only, no hardcoded hex, ≥44px targets); (5) server/client split.
-- Then fix 🔴/🟡 findings via developer role and update this section.
+P2 review outcome (commit history on `p2-timetable`): no 🔴; 6 🟡 all fixed
+(WCAG AA contrast now 4.9–5.1:1, env footgun throws instead of silent demo, `closed`
+override keeps booked slots visible, shop-level `extra_open` gated to scheduled resources,
+44px touch targets, `server-only` import). Deferred 🟢: formatMinutes 24:00, <37min slot
+clamp (Mode B/P8), allClosed reason edge, tab arrow-key nav.
 
 ## Fixed workflow for every phase
 

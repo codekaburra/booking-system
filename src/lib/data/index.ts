@@ -9,6 +9,8 @@
  * 只能在 server 端使用(Server Component / Route Handler)。
  */
 
+import "server-only";
+
 import type {
   AvailabilityRule,
   Course,
@@ -34,12 +36,22 @@ export interface BookingDataSource {
   getAvailabilityRules(): Promise<AvailabilityRule[]>;
 }
 
-/** 是否已設定 Supabase 連線(未設定時走 demo 資料) */
+/**
+ * 是否已設定 Supabase 連線。
+ * - 兩者皆缺 → 走 demo 資料(false)。
+ * - 兩者皆有 → 走真實後端(true)。
+ * - 只設其一(常見:prod 少貼 key 或打錯)→ 直接 throw,避免整站悄悄退回 demo
+ *   雪板 seed 資料的 production footgun。
+ */
 export function hasSupabaseEnv(): boolean {
-  return Boolean(
-    process.env.NEXT_PUBLIC_SUPABASE_URL &&
-      process.env.SUPABASE_SERVICE_ROLE_KEY,
-  );
+  const hasUrl = Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL);
+  const hasKey = Boolean(process.env.SUPABASE_SERVICE_ROLE_KEY);
+  if (hasUrl !== hasKey) {
+    throw new Error(
+      "Supabase partially configured: set both NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY, or neither for demo mode",
+    );
+  }
+  return hasUrl && hasKey;
 }
 
 export async function getDataSource(): Promise<BookingDataSource> {

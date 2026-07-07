@@ -5,6 +5,8 @@
  * (getSupabaseServerClient 已擋瀏覽器端使用)。
  */
 
+import "server-only";
+
 import type {
   AvailabilityRule,
   Course,

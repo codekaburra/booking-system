@@ -23,21 +23,20 @@
   --status-closed: #c9c9c0; /* 休息 / 關閉 */
   --status-cancelled: #9b9b93; /* 已取消 */
 
-  /* 狀態色深化(淡底上的文字用,確保 WCAG AA;由上方狀態 token 衍生,非新色) */
+  /* 狀態色深化(淡底上的文字用,確保 WCAG AA;由上方狀態 token 衍生,非新色)。
+     混入固定 #333333(非 var(--color-text)):讓每店覆寫 --color-text 也不會把
+     狀態文字對比拖低。40% 狀態 / 60% #333 —— 於實際淡底(status/15~/25 疊底)
+     上,滿/有位/待確認文字皆 ≥4.5:1(WCAG AA,11–13px)。 */
   --status-available-strong: color-mix(
     in srgb,
-    var(--status-available) 70%,
-    var(--color-text)
+    var(--status-available) 40%,
+    #333333
   );
-  --status-full-strong: color-mix(
-    in srgb,
-    var(--status-full) 70%,
-    var(--color-text)
-  );
+  --status-full-strong: color-mix(in srgb, var(--status-full) 40%, #333333);
   --status-pending-strong: color-mix(
     in srgb,
-    var(--status-pending) 70%,
-    var(--color-text)
+    var(--status-pending) 40%,
+    #333333
   );
 }
 

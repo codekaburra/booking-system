@@ -124,6 +124,10 @@ create index availability_rules_resource_id_idx
 --   1. date_overrides > availability_rules
 --   2. override 之間:closed > special_hours > extra_open
 --   3. 層級之間:資源級(resource_id 有值)> 全店級(resource_id 為 null)
+-- 全店級 extra_open 只延伸「當日已有排班」的資源;要替未排班的特定資源加開,
+-- 用資源級 extra_open(shop-level extra_open applies only to resources already
+-- scheduled that day; use resource-level extra_open to open a specific
+-- unscheduled resource)。
 -- ---------------------------------------------------------------------------
 create table public.date_overrides (
   id          uuid primary key default gen_random_uuid(),

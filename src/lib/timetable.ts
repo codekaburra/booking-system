@@ -10,7 +10,10 @@
  * - 全店 closed        → 所有資源該日無開放(除非資源級 override 又把它打開)。
  * - 全店 special_hours → 各資源開放時段 = 自身 rules ∩ special 範圍
  *                        (店只開這段;沒排班的資源不會因此變成有開)。
- * - 全店 extra_open    → 各資源開放時段 ∪ extra 範圍。
+ * - 全店 extra_open    → 僅延伸「當日本就有排班(≥1 rule window)」的資源:
+ *                        該資源開放時段 ∪ extra 範圍;沒排班的資源不受影響
+ *                        (與 special_hours 交集同理,不憑空開放未排班資源)。
+ *                        要替特定未排班資源加開 → 用資源級 extra_open(無條件)。
  * - 資源級 closed        → 該資源整日休(蓋過全店級任何設定)。
  * - 資源級 special_hours → 該資源開放時段 = special 範圍(取代 rules 與全店級)。
  * - 資源級 extra_open    → 該資源開放時段 ∪ extra 範圍(全店 closed 時 = 只開這段)。
@@ -180,6 +183,8 @@ export function resolveResourceDay(
         endMin: minutesOfTime(r.end_time),
       })),
   );
+  // 該資源當日是否本就有排班(rule-based window)—— 決定全店級 extra_open 是否適用
+  const hasScheduledShift = windows.length > 0;
 
   const dayOvs = overrides.filter((o) => o.date === date);
   const find = (rid: string | null, type: DateOverrideType) =>
@@ -201,8 +206,12 @@ export function resolveResourceDay(
       windows = intersectWindows(windows, windowOf(shopSpecial));
       specialReason = shopSpecial.reason;
     }
+    // 全店級 extra_open 只延伸「當日已有排班」的資源(與 special_hours 交集同理:
+    // 不會替沒排班的資源憑空開一段)。要替未排班資源加開,用資源級 extra_open。
     const shopExtra = find(null, "extra_open");
-    if (shopExtra) windows = mergeWindows([...windows, windowOf(shopExtra)]);
+    if (shopExtra && hasScheduledShift) {
+      windows = mergeWindows([...windows, windowOf(shopExtra)]);
+    }
   }
 
   // --- 資源級(> 全店級)---

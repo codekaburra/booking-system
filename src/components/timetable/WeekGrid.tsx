@@ -90,12 +90,31 @@ function DayColumn({
       ))}
 
       {day.closed ? (
-        // 整欄休(override closed):淡灰 + 「休」+ reason(不能只靠色)
-        <div className="absolute inset-0 flex items-center justify-center bg-status-closed/35 px-1">
-          <span className="text-sm text-muted [writing-mode:vertical-rl] tracking-widest">
-            休{day.closed.reason ? `・${day.closed.reason}` : ""}
-          </span>
-        </div>
+        // 整欄休(override closed):淡灰底 + 「休」+ reason(不能只靠色)。
+        // ⚠️ PLAN §6:既有(尤其已約)slots 必須仍可見,讓老闆逐筆處理衝突 ——
+        // closed 淡底墊在最底層,slots 照常疊在上面(標「休」)。
+        <>
+          <div
+            aria-hidden
+            className="absolute inset-0 bg-status-closed/35"
+          />
+          {day.slots.length === 0 ? (
+            <div className="absolute inset-0 flex items-center justify-center px-1">
+              <span className="text-sm text-muted [writing-mode:vertical-rl] tracking-widest">
+                休{day.closed.reason ? `・${day.closed.reason}` : ""}
+              </span>
+            </div>
+          ) : (
+            <div className="absolute inset-x-0 top-0 flex justify-center pt-1">
+              <span className="rounded-full bg-status-closed/70 px-2 py-0.5 text-[10px] text-text">
+                休{day.closed.reason ? `・${day.closed.reason}` : ""}
+              </span>
+            </div>
+          )}
+          {day.slots.map((s) => (
+            <SlotCell key={s.id} slot={s} axisStartMin={axisStartMin} />
+          ))}
+        </>
       ) : (
         <>
           {/* 開放時段以外 = 休息陰影(含 special_hours 外的時段) */}
