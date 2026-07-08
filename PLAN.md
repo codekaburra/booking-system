@@ -4,7 +4,7 @@
 > Example scenario A (request mode): snowboard school — student views weekly timetable → submits form with multiple preferred time slots → owner confirms → notification.
 > Example scenario B (instant mode): self-service gym / pilates / yoga — customer picks a room + start time + duration (30/45/60 min) → instantly confirmed.
 
-Last updated: 2026-07-07 | **Development progress & handoff guide: [PROGRESS.md](PROGRESS.md)**
+Last updated: 2026-07-08 | **Development progress & handoff guide: [PROGRESS.md](PROGRESS.md)**
 
 ---
 
@@ -93,11 +93,25 @@ template repo (one core codebase)
 
 > Auth via Supabase Auth with a `role` distinction. Client login is an optional convenience; booking always works without login (low friction).
 
+**Admin role storage (decided for P4)**: use Supabase Auth `app_metadata.role = 'admin'`
+(set server-side, not user-editable) — no extra table. **Every admin server action must
+verify `role === 'admin'` before touching the service role**; this is the easiest hole to
+leave open, so it is a hard rule, not a convention. (Alternative — a dedicated `admins`
+table — is only worth it if we later need per-admin permissions; not now.)
+
+**Guest reachability (decided for P4)**: `email` is optional and `preferred_channel`
+defaults to email, so a guest who leaves email blank is a "confirmed but unreachable"
+black hole. Fallback: (1) the booking form **encourages** an email/contact channel;
+(2) the admin request inbox **flags** such bookings as "cannot notify — phone the customer".
+Phone is always captured, so manual contact is always possible.
+
 ---
 
-## 5. Database Tables (8)
+## 5. Database Tables (8 core + `resource_courses` join)
 
 > Because of per-shop deployment there is **no** `shop_id` and no multi-tenant RLS.
+> `0001` (8 core tables) is **frozen**; `resource_courses` and the notification-log
+> changes below land in **new migrations** (P5/P6), never by editing `0001`.
 
 ```
 clients ──< booking_requests ──< request_slots >── slots >── resources
@@ -105,6 +119,7 @@ clients ──< booking_requests ──< request_slots >── slots >── res
                      │  + starts_at/ends_at)
 availability_rules ── resources
 date_overrides ────── resources (nullable = whole shop)
+resource_courses ──── resources / courses   (which resource teaches which course)
 ```
 
 ### clients
@@ -182,7 +197,8 @@ date_overrides ────── resources (nullable = whole shop)
 | resource_id | **final resource** (Mode A: filled on approve; Mode B: set at creation) |
 | starts_at / ends_at | **final time range** (same as above; Mode B overlap checks use these) |
 | note | |
-| notify_channel / notified_at | notification log |
+| notify_channel / notified_at | last confirm/reject/cancel notification (see notification-log decision below) |
+| reminded_at | pre-session reminder sent-at (**P6**; distinct from `notified_at` so a reminder never overwrites the confirm timestamp) |
 | gcal_event_id | resource calendar event (P7) |
 | company_gcal_event_id | company calendar event (P7) |
 
@@ -194,6 +210,22 @@ date_overrides ────── resources (nullable = whole shop)
 | request_id | FK → booking_requests |
 | slot_id | FK → slots |
 | preference_order | 1, 2, 3… |
+
+> Constraints: `unique(request_id, preference_order)` **and** `unique(request_id, slot_id)`
+> — the same slot must not be pickable as two preferences (enforce in `validate.ts`,
+> the `0002` RPC dedup, **and** the DB constraint). `0002` is not committed yet, so this
+> goes straight into it.
+
+### resource_courses (which resource teaches / offers which course) — added P5/P6
+| Column | Notes |
+|---|---|
+| resource_id | FK → resources |
+| course_id | FK → courses |
+
+> Needed by **P6** slot generation: slots = availability_rules × the courses that
+> resource actually offers (without this the generator would either produce every
+> resource×course combination — mostly invalid — or have no basis at all). **P5** admin
+> screen 6 gets the editing UI (per-resource course checkboxes). PK/unique `(resource_id, course_id)`.
 
 ---
 
@@ -227,6 +259,10 @@ Owner sees the request (each preference with live remaining capacity)
 
 **Key**: the seat is only taken at approve time, inside a transaction — prevents overbooking when two students race for the last seat.
 
+**Approve must check TWO things (both in the same transaction / DB function):**
+1. Capacity: `booked_count < capacity` on the chosen slot.
+2. **Resource-level time overlap**: no other *approved* booking for the same resource overlapping this time range (slots of different courses can overlap for one instructor; without this check an instructor can be double-booked — certain to happen once P6 auto-generates slots). Reuses the `(resource_id, starts_at, ends_at) where approved` partial index from P1; same guard Mode B uses.
+
 ### Admin manual booking (phone / LINE DM / walk-in)
 Many customers book by phone or DM. The owner can **create a booking directly in the admin UI**:
 pick slot → enter name + phone (same client dedup) → directly approved (skips pending).
@@ -237,9 +273,19 @@ pick slot → enter name + phone (same client dedup) → directly approved (skip
 - **Reschedule** = cancel + rebook (no in-place edit; simplest logic). Owner can do it on behalf of a customer.
 
 ### Slot generation strategy (Mode A)
-- A scheduled job **rolls forward 4 weeks of slots daily** (rules × course duration, **applying date_overrides**: closed → skip, special_hours → adjust, extra_open → add).
+- A scheduled job **rolls forward 4 weeks of slots daily** (rules × the courses each
+  resource offers via `resource_courses` × course duration, **applying date_overrides**:
+  closed → skip, special_hours → adjust, extra_open → add).
+- **Shop-level `extra_open` scope** (decided): a whole-shop `extra_open` only extends the
+  time of resources **already scheduled that day** — it does **not** conjure availability
+  for a resource that had no shift (same "no availability out of nothing" rationale as the
+  shop-level `special_hours` intersection). To add a slot for a specific off-day instructor,
+  use a **resource-level** `extra_open`. (This contract lives in the `0001` migration comment.)
 - When the owner edits hours / adds an override → only regenerate **future slots with no bookings**; slots with bookings are untouched and conflicts are listed for manual handling.
-- Scheduler: Vercel Cron (free tier).
+- Scheduler: **Vercel Cron (free tier = one run/day)** — so the pre-session reminder (§8)
+  is designed as "each day, notify everyone with a session tomorrow", not a precise-time trigger.
+- The same daily cron also **marks past `approved` bookings as `completed`** (nobody else
+  transitions that status).
 
 ### Resource leave / temporary closure (instructor sick day, room maintenance)
 - Owner adds a date_override (closed / special_hours) for that resource.
@@ -270,7 +316,7 @@ pick slot → enter name + phone (same client dedup) → directly approved (skip
 
 ### Owner-facing (login required)
 5. **Request inbox** — preferences with live remaining capacity, one-click confirm/reject (with capacity check); **manual booking** (phone/walk-in), cancel / reschedule on behalf
-6. **Services + hours + resource management** — durations/capacities/prices, weekly hours, resources (colors, deactivate, Google link), **special dates management** (holiday import, closures, leave/maintenance + conflict handling for affected bookings)
+6. **Services + hours + resource management** — durations/capacities/prices, weekly hours, resources (colors, deactivate, Google link), **which courses each resource offers** (`resource_courses`, drives P6 slot generation), **special dates management** (holiday import, closures, leave/maintenance + conflict handling for affected bookings)
 7. **Client management** — client list + per-client session history (admin view)
 8. **Login / signup** — clients and admin (role-based redirect)
 
@@ -286,11 +332,19 @@ pick slot → enter name + phone (same client dedup) → directly approved (skip
 
 - Enabled channels → `shop.config.ts` (per shop).
 - Clients pick `preferred_channel`; phone is **always required** since all channels may need it.
+- **Unreachable guests**: if the chosen channel has no address (e.g. no email), the admin UI
+  flags "cannot notify — phone the customer" (see §4). Never silently drop a notification.
+- **Notification tracking (decided for P6)**: `booking_requests.notified_at` alone can't tell
+  which reminders went out. Add a dedicated **`notifications` log table**
+  (`booking_request_id, channel, kind [received|confirmed|rejected|cancelled|reminder], sent_at, status`)
+  in a P6 migration. Minimal alternative if we stay lean: just add `reminded_at` (§5). The log
+  is preferred because it also gives an audit trail and retry visibility.
 - Notification moments:
   1. On submission (received + booking_id)
   2. On admin confirm / reject
   3. On cancellation
-  4. **Reminder one day before the session** (P6, Vercel Cron; the single best anti-no-show feature)
+  4. **Reminder one day before the session** (P6, Vercel Cron; the single best anti-no-show feature).
+     Hobby cron runs once/day → design as "each morning, remind everyone with a session tomorrow", not exact-time.
 
 ---
 
@@ -322,9 +376,9 @@ Company Service Account (single credential)
 | **P1 Foundation** | Supabase schema (8 tables incl. resources / date_overrides) + snowboard demo seed |
 | **P2 Timetable** | Read-only weekly timetable (whole-shop / single-resource views), RWD, special-date labels |
 | **P3 Booking (Mode A)** | Multi-preference form + client dedup + pending submission + status page |
-| **P4 Admin core** | Supabase Auth (admin login) + approval + capacity check + booking_id + email notifications + **manual booking / cancel** (closes the loop) |
-| **P5 Clients + settings** | Client signup/login + My bookings + services/resources/hours admin + **special dates (holiday import, leave/maintenance + conflict handling)** + client management + extract `shop.config.ts` (template-ization) |
-| **P6 Polish** | Per-shop theming, mobile polish, **pre-session reminders**, **self-service cancellation (with policy)**, optional WhatsApp / LINE |
+| **P4 Admin core** | Supabase Auth (admin login, `app_metadata.role='admin'`; **every server action verifies role first**) + approval with **capacity AND resource-overlap check** (§6) + booking_id + email notifications + **unreachable-guest flag** + **manual booking / cancel** (closes the loop) |
+| **P5 Clients + settings** | Client signup/login + My bookings + services/resources/hours admin + **`resource_courses` editor** + **special dates (holiday import, leave/maintenance + conflict handling)** + client management. (`shop.config.ts` was already extracted in P1 — do **not** redo.) |
+| **P6 Polish** | Per-shop theming, mobile polish, **slot-generation cron + `completed` transition**, **notifications log table**, **pre-session reminders** (daily cron, "tomorrow's sessions"), **self-service cancellation (with policy)**, optional WhatsApp / LINE |
 | **P7 Calendar** | Google Calendar one-way push (resource + company calendars) |
 | **P8 Instant mode (Mode B)** | Start-time + duration booking, dynamic availability, anti-overlap transaction → self-service gym/pilates/yoga (payments become higher priority here) |
 
