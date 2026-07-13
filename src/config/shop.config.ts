@@ -69,4 +69,14 @@ export const shopConfig: ShopConfig = {
   cancellationCutoffHours: 24,
 };
 
+/**
+ * 本店預設通知管道 = notifications 中第一個開啟的 channel;全關則退回 "email"。
+ * 用於:新客戶的 clients.preferred_channel、模式 A 送出的 notify_channel 預設,
+ * 避免把 "email" 這個店家設定寫死在資料層(通知本身在 P6)。
+ */
+export function defaultNotifyChannel(config: ShopConfig = shopConfig): NotifyChannel {
+  const order: NotifyChannel[] = ["email", "whatsapp", "line"];
+  return order.find((c) => config.notifications[c]) ?? "email";
+}
+
 export default shopConfig;
