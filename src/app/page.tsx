@@ -20,18 +20,17 @@ export default function Home() {
         </p>
         <div className="flex flex-col items-center gap-4 sm:flex-row">
           <Link
-            href="/timetable"
+            href="/book"
             className="rounded-full bg-primary px-8 py-3 text-sm font-medium text-surface shadow-sm transition hover:opacity-90"
+          >
+            開始預約
+          </Link>
+          <Link
+            href="/timetable"
+            className="rounded-full border border-border bg-surface px-8 py-3 text-sm text-text transition hover:border-primary hover:text-primary"
           >
             查看週課表
           </Link>
-          <span
-            className="cursor-not-allowed rounded-full border border-border bg-surface px-8 py-3 text-sm text-muted"
-            aria-disabled="true"
-            title="預約功能即將推出(P3)"
-          >
-            開始預約(即將推出)
-          </span>
         </div>
       </main>
 

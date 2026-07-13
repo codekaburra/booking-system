@@ -90,14 +90,22 @@ export default async function TimetablePage({
 
       <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8 sm:px-6">
         <div className="mb-6 flex flex-col gap-4">
-          <div>
-            <h1 className="font-serif text-2xl font-medium sm:text-3xl">
-              週課表
-            </h1>
-            <p className="mt-1 text-sm text-muted">
-              時間為台北時間(24 小時制)
-              {!hasSupabaseEnv() && "・目前顯示示範資料"}
-            </p>
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h1 className="font-serif text-2xl font-medium sm:text-3xl">
+                週課表
+              </h1>
+              <p className="mt-1 text-sm text-muted">
+                時間為台北時間(24 小時制)
+                {!hasSupabaseEnv() && "・目前顯示示範資料"}
+              </p>
+            </div>
+            <Link
+              href="/book"
+              className="rounded-full bg-primary px-6 py-2.5 text-sm font-medium text-surface shadow-sm transition hover:opacity-90"
+            >
+              線上預約
+            </Link>
           </div>
 
           {/* 週導覽 + 視角切換 */}

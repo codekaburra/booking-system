@@ -1,10 +1,10 @@
 import Link from "next/link";
 import { shopConfig } from "@/config/shop.config";
 
-/** 導覽:P2 週曆已上線;P3 預約表單、P5 我的預約 完成後換成連結 */
+/** 導覽:P2 週曆、P3 線上預約已上線;P5 我的預約 完成後換成連結 */
 const navItems = [
   { label: "週課表", href: "/timetable" },
-  { label: "線上預約", href: null, stage: "P3" },
+  { label: "線上預約", href: "/book" },
   { label: "我的預約", href: null, stage: "P5" },
 ] as const;
 
