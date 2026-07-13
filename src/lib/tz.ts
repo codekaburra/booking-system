@@ -114,3 +114,33 @@ export function shortDateLabel(dateStr: string): string {
   const [, m, d] = dateStr.split("-").map(Number);
   return `${m}/${d}`;
 }
+
+/** 某月有幾天(純日曆;month 為 1–12) */
+export function daysInMonth(year: number, month: number): number {
+  return new Date(Date.UTC(year, month, 0)).getUTCDate();
+}
+
+/** 月曆格線一格 */
+export interface MonthGridCell {
+  date: string;
+  /** 是否屬於目標月份(否則為前後月補齊日) */
+  inMonth: boolean;
+}
+
+/**
+ * 產生完整月曆格線(週一為首、5 或 6 列 × 7 欄)。
+ * 含前後月補齊日,讓整月一次呈現(不是只顯示一週)。
+ */
+export function buildMonthGrid(year: number, month: number): MonthGridCell[] {
+  const prefix = `${year}-${String(month).padStart(2, "0")}-`;
+  const first = `${prefix}01`;
+  const last = `${prefix}${String(daysInMonth(year, month)).padStart(2, "0")}`;
+  const gridStart = mondayOf(first);
+  const gridEnd = addDays(mondayOf(last), 6); // 該月最後一週的週日
+
+  const cells: MonthGridCell[] = [];
+  for (let date = gridStart; date <= gridEnd; date = addDays(date, 1)) {
+    cells.push({ date, inMonth: date.startsWith(prefix) });
+  }
+  return cells;
+}

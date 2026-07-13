@@ -280,7 +280,7 @@ export function BookFlow({
             <span className="text-xs text-muted">已選 {selected.length} 個</span>
           </div>
           <p className="text-xs text-muted">
-            點月曆上有位的日期,勾選當日時段;可跨日跨月複選,勾選順序即為志願序(1、2、3…)。
+            上方為整月曆,下方列出當月所有可預約日期;可跨日跨月複選,勾選順序即為志願序(1、2、3…)。
           </p>
           {fieldErrors.slots && (
             <p className="text-sm text-status-full-strong">{fieldErrors.slots}</p>
