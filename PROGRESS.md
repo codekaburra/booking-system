@@ -11,27 +11,25 @@
 | P1 | Scaffold + 8-table schema + seed | ✅ Done (reviewed + fixed) | `p1-project-scaffold` `26f77e7`+`fc7d889` → [PR #1](https://github.com/codekaburra/booking-system/pull/1) (open) |
 | P2 | Weekly timetable (shop/resource views, RWD, overrides) | ✅ Done (reviewed + fixed) | `p2-timetable` (stacked on P1) |
 | P3 | Booking form (Mode A multi-preference) + client dedup + status page | ✅ Done (reviewed + fixed) | `p3-booking-form` |
-| P4 | Admin core (auth, approval w/ overbooking guard, email, manual booking/cancel) | ⬜ Not started | branch `p4-admin-core` off `p3-booking-form` |
-| P5 | Client login + My bookings + settings admin + special dates | ⬜ Not started | |
+| P4 | Admin core (auth, approval w/ overbooking guard, email, manual booking/cancel) | ✅ Done | `p4-admin-core` |
+| P5 | Client login + My bookings + settings admin + special dates | ⬜ Not started | branch `p5-client-settings` off `p4-admin-core` |
 | P6 | Polish (reminders, self-cancel, slot generation cron, channels) | ⬜ Not started | |
 | P7 | Google Calendar one-way push | ⬜ Not started | |
 | P8 | Instant mode B (time-range booking, anti-overlap) | ⬜ Not started | |
 
 ## ⚠️ Next action (as of 2026-07-13)
 
-**Start P4** (admin core). Branch off `p3-booking-form` → `p4-admin-core`.
-See PLAN.md §4 (admin role), §6 (approve w/ capacity + resource-overlap), §7 screen 5.
-Key deliverables: Supabase Auth admin login, request inbox, approve/reject RPC (capacity +
-overlap guard), email notifications, manual booking + cancel.
+**Start P5** (client login + My bookings + settings admin). Branch off `p4-admin-core` → `p5-client-settings`.
+See PLAN.md §7 screens 4 & 6, §5 `resource_courses` editor.
 
-P3 review outcome: no 🔴; 🟡 fixes landed before commit
-(phone dedup race → `on conflict` in 0002, duplicate-preference guard in validate + 0002,
-`defaultNotifyChannel()` from shop.config, demo uses today-relative slot generator for
-rich month-picker preview). Deferred 🟢: durable status lookup (P5 `getBookingByCode`),
-vitest + check-sql scripts (process improvement).
+P4 delivered: Supabase Auth admin login (`app_metadata.role='admin'`), demo admin fallback,
+inbox (approve w/ capacity + overlap / reject / cancel), manual booking, Resend email
+(submit/confirm/reject/cancel; skips gracefully without API key), unreachable-guest flag.
 
-**Branch strategy reminder:** stack is `p1→p2→p3` with PR #1 still open. After P4 (or sooner),
-merge the whole stack into `main` once, then branch each later phase off `main`.
+**Admin setup (real Supabase):** create user in Dashboard → set `app_metadata.role = "admin"`.
+Run migrations `0001` → `0002` → `0003`. Optional: `RESEND_API_KEY` + `RESEND_FROM` in `.env.local`.
+
+**Demo admin:** `/admin/login` →「進入示範後台」(no Supabase env required).
 
 ## Plan review (2026-07-08) — decisions now recorded in PLAN.md, land in the phases below
 Architecture (8 tables, two modes, per-shop deploy, RPC transactions, tz contract) is sound —

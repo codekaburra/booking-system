@@ -12,6 +12,7 @@
  */
 
 import { getDataSource } from "@/lib/data";
+import { canSendEmail, sendBookingEmail } from "@/lib/notify/email";
 import { toBookableSlots } from "@/lib/booking/slot-view";
 import {
   checkSlotsAvailable,
@@ -79,13 +80,11 @@ export async function createBookingAction(
     };
   }
 
-  // 3. 交易寫入(真實後端在 0002 DB 函式內再驗一次)
   let result;
   try {
     result = await ds.createBooking(input);
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
-    // DB 端最後防線拋出的可預期錯誤 → 轉為友善提示
     if (msg.includes("slot_unavailable")) {
       return { ok: false, message: "部分時段剛剛額滿,請回上一步重新選擇。" };
     }
@@ -96,6 +95,18 @@ export async function createBookingAction(
       };
     }
     return { ok: false, message: "送出失敗,請稍後再試。" };
+  }
+
+  // 收到通知(P4;無 RESEND_API_KEY 時靜默跳過)
+  const email = input.email?.trim();
+  if (canSendEmail(email)) {
+    await sendBookingEmail({
+      kind: "received",
+      to: email!,
+      clientName: input.name.trim(),
+      bookingId: result.bookingId,
+      courseName: course.name,
+    });
   }
 
   // 摘要:依志願序組出顯示資料(slotIds 已是志願序)

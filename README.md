@@ -31,8 +31,9 @@ npm run lint
 
 1. 建 Supabase 專案(平台帳號只有一個,店 = 專案)
 2. 跑 `supabase/migrations/0001_init.sql` 建表
-3. 跑 seed 建初始資料 + admin 帳號(P4 之後)
-4. 填 `.env.local` + 改 [src/config/shop.config.ts](src/config/shop.config.ts)
+3. 跑 seed 建初始資料;P4 後台:在 Supabase Auth 建立使用者並設 `app_metadata.role = "admin"`
+4. 跑 migration `0002`、`0003`(預約送出 + 管理操作 RPC)
+5. 填 `.env.local` + 改 [src/config/shop.config.ts](src/config/shop.config.ts)
    (店名、slug、booking_mode、主題色、通知管道、資源稱呼)
 5. Vercel 接上對應 branch(branch-per-shop,核心改一次 merge 進各店 branch)
 
