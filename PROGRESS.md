@@ -12,24 +12,21 @@
 | P2 | Weekly timetable (shop/resource views, RWD, overrides) | ✅ Done (reviewed + fixed) | `p2-timetable` (stacked on P1) |
 | P3 | Booking form (Mode A multi-preference) + client dedup + status page | ✅ Done (reviewed + fixed) | `p3-booking-form` |
 | P4 | Admin core (auth, approval w/ overbooking guard, email, manual booking/cancel) | ✅ Done | `p4-admin-core` |
-| P5 | Client login + My bookings + settings admin + special dates | ⬜ Not started | branch `p5-client-settings` off `p4-admin-core` |
+| P5 | Client login + My bookings + settings admin + special dates | ✅ Done | `p5-client-settings` |
 | P6 | Polish (reminders, self-cancel, slot generation cron, channels) | ⬜ Not started | |
 | P7 | Google Calendar one-way push | ⬜ Not started | |
 | P8 | Instant mode B (time-range booking, anti-overlap) | ⬜ Not started | |
 
-## ⚠️ Next action (as of 2026-07-13)
+## ⚠️ Next action (as of 2026-07-14)
 
-**Start P5** (client login + My bookings + settings admin). Branch off `p4-admin-core` → `p5-client-settings`.
-See PLAN.md §7 screens 4 & 6, §5 `resource_courses` editor.
+**Start P6** (polish: slot-generation cron, reminders, self-cancel, notifications log).
+Branch off `p5-client-settings` (or merge stack to `main` first per process note below).
 
-P4 delivered: Supabase Auth admin login (`app_metadata.role='admin'`), demo admin fallback,
-inbox (approve w/ capacity + overlap / reject / cancel), manual booking, Resend email
-(submit/confirm/reject/cancel; skips gracefully without API key), unreachable-guest flag.
-
-**Admin setup (real Supabase):** create user in Dashboard → set `app_metadata.role = "admin"`.
-Run migrations `0001` → `0002` → `0003`. Optional: `RESEND_API_KEY` + `RESEND_FROM` in `.env.local`.
-
-**Demo admin:** `/admin/login` →「進入示範後台」(no Supabase env required).
+P5 delivered: client login/signup (Supabase Auth + demo phone login), My bookings
+(logged-in list + guest phone+booking_id lookup), `getBookingByCode`, status page
+with real state, booking form autofill, admin settings (courses/resources/hours,
+`resource_courses` editor, special dates + holiday import + conflict check),
+client management list. Migration `0004_resource_courses.sql`.
 
 ## Plan review (2026-07-08) — decisions now recorded in PLAN.md, land in the phases below
 Architecture (8 tables, two modes, per-shop deploy, RPC transactions, tz contract) is sound —

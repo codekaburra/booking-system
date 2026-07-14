@@ -24,6 +24,12 @@ export default async function AdminLayout({
               <Link href="/admin/manual" className="text-text hover:text-primary">
                 手動約課
               </Link>
+              <Link href="/admin/settings" className="text-text hover:text-primary">
+                店鋪設定
+              </Link>
+              <Link href="/admin/clients" className="text-text hover:text-primary">
+                客戶
+              </Link>
             </nav>
             <div className="flex items-center gap-3 text-xs text-muted">
               <span>{session.email}{session.demo ? " (示範)" : ""}</span>

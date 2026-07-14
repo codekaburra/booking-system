@@ -21,10 +21,10 @@ npm run lint
 
 ## 資料庫
 
-- Schema(8 張表):[supabase/migrations/0001_init.sql](supabase/migrations/0001_init.sql)
+- Schema(8 張表 + `resource_courses`):[supabase/migrations/](supabase/migrations/)
 - 雪板店 demo 種子資料:[supabase/seed.sql](supabase/seed.sql)
 
-在 Supabase Dashboard 的 SQL Editor 依序執行上述兩個檔案,
+在 Supabase Dashboard 的 SQL Editor 依序執行 migration `0001`–`0004` 與 seed,
 或用 Supabase CLI:`supabase db push` 後執行 seed。
 
 ## 開新店 checklist(目標 10 分鐘內)
@@ -32,7 +32,7 @@ npm run lint
 1. 建 Supabase 專案(平台帳號只有一個,店 = 專案)
 2. 跑 `supabase/migrations/0001_init.sql` 建表
 3. 跑 seed 建初始資料;P4 後台:在 Supabase Auth 建立使用者並設 `app_metadata.role = "admin"`
-4. 跑 migration `0002`、`0003`(預約送出 + 管理操作 RPC)
+4. 跑 migration `0002`–`0004`(預約 RPC、管理 RPC、`resource_courses`)
 5. 填 `.env.local` + 改 [src/config/shop.config.ts](src/config/shop.config.ts)
    (店名、slug、booking_mode、主題色、通知管道、資源稱呼)
 5. Vercel 接上對應 branch(branch-per-shop,核心改一次 merge 進各店 branch)
