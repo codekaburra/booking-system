@@ -29,6 +29,8 @@ interface Props {
   /** 台北今天 "YYYY-MM-DD"(server 計算;月曆預設當月與過去日判斷用) */
   today: string;
   submit: (input: CreateBookingInput) => Promise<BookActionResult>;
+  /** P5:已登入客戶自動帶入 */
+  autofill?: { name: string; phone: string; email: string };
 }
 
 const inputClass =
@@ -47,14 +49,15 @@ export function BookFlow({
   channelLabel,
   today,
   submit,
+  autofill,
 }: Props) {
   const router = useRouter();
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [courseId, setCourseId] = useState("");
   const [selected, setSelected] = useState<string[]>([]);
-  const [name, setName] = useState("");
-  const [phone, setPhone] = useState("");
-  const [email, setEmail] = useState("");
+  const [name, setName] = useState(autofill?.name ?? "");
+  const [phone, setPhone] = useState(autofill?.phone ?? "");
+  const [email, setEmail] = useState(autofill?.email ?? "");
   const [note, setNote] = useState("");
   const [fieldErrors, setFieldErrors] = useState<Partial<Record<Field, string>>>(
     {},

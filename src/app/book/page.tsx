@@ -14,6 +14,7 @@ import { taipeiToday } from "@/lib/tz";
 import { toBookableSlots } from "@/lib/booking/slot-view";
 import type { BookableCourse, BookableSlot } from "@/lib/booking/types";
 import { SiteFooter, SiteHeader } from "@/components/site-chrome";
+import { getClientSession } from "@/lib/auth/client";
 import { BookFlow } from "./BookFlow";
 import { createBookingAction } from "./actions";
 
@@ -61,6 +62,7 @@ export default async function BookPage() {
 
   const ds = await getDataSource();
   const now = new Date();
+  const clientSession = await getClientSession();
   const [courseRows, resources] = await Promise.all([
     ds.getCourses(),
     ds.getResources(),
@@ -107,6 +109,15 @@ export default async function BookPage() {
           channelLabel={enabledChannelsLabel()}
           today={taipeiToday(now)}
           submit={createBookingAction}
+          autofill={
+            clientSession
+              ? {
+                  name: clientSession.name,
+                  phone: clientSession.phone,
+                  email: clientSession.email ?? "",
+                }
+              : undefined
+          }
         />
       </main>
       <SiteFooter />
