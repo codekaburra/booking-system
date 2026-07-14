@@ -114,11 +114,22 @@ export const courses: Course[] = [
  * 每個資源可教哪些課(resource_courses 對映表 P6 才建；此處先在產生器內合理指定)。
  * 產生器每天為每個資源挑其中一門課,鋪滿當天有效開放時段。
  */
-const resourceCourses: Record<string, string[]> = {
-  [RES.xiaoming]: [COURSE.private90, COURSE.group120],
-  [RES.ahua]: [COURSE.private90, COURSE.group120],
-  [RES.peipei]: [COURSE.kids60, COURSE.private90],
-};
+/** resource_courses 對映(P5 設定頁 / P6 生成器共用) */
+export const resourceCourseLinks: { resource_id: string; course_id: string }[] = [
+  { resource_id: RES.xiaoming, course_id: COURSE.private90 },
+  { resource_id: RES.xiaoming, course_id: COURSE.group120 },
+  { resource_id: RES.ahua, course_id: COURSE.private90 },
+  { resource_id: RES.ahua, course_id: COURSE.group120 },
+  { resource_id: RES.peipei, course_id: COURSE.kids60 },
+  { resource_id: RES.peipei, course_id: COURSE.private90 },
+];
+
+const resourceCourses: Record<string, string[]> = Object.fromEntries(
+  Object.values(RES).map((rid) => [
+    rid,
+    resourceCourseLinks.filter((l) => l.resource_id === rid).map((l) => l.course_id),
+  ]),
+);
 
 let ruleSeq = 0;
 function rule(

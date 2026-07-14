@@ -20,10 +20,15 @@ import { defaultNotifyChannel } from "@/config/shop.config";
 import { getDataSource, hasSupabaseEnv } from "@/lib/data";
 import { getSupabaseServerClient } from "@/lib/supabase";
 import {
+  demoClients,
+  demoRequestSlots,
+  demoRequests,
+  demoSlots,
+} from "@/lib/data/demo-store";
+import {
   availabilityRules,
   buildDateOverrides,
   courses,
-  generateSlots,
   resources,
 } from "@/lib/data/demo-generator";
 import { taipeiToday } from "@/lib/tz";
@@ -31,89 +36,8 @@ import { taipeiToday } from "@/lib/tz";
 // --- Demo 記憶體狀態(程序內;重啟 reset)-----------------------------------
 
 const DEMO_TODAY = taipeiToday();
-const demoSlots = generateSlots(DEMO_TODAY);
-const demoOverrides = buildDateOverrides(DEMO_TODAY);
-
-const demoClients: Client[] = [
-  {
-    id: "33333333-3333-4333-8333-000000000001",
-    name: "王小美",
-    phone: "0912345678",
-    email: "xiaomei@example.com",
-    line_user_id: null,
-    preferred_channel: "email",
-    auth_user_id: null,
-    note: null,
-    created_at: "2026-07-06T00:00:00+08:00",
-    updated_at: "2026-07-06T00:00:00+08:00",
-  },
-  {
-    id: "33333333-3333-4333-8333-000000000002",
-    name: "陳大明",
-    phone: "0987654321",
-    email: "daming@example.com",
-    line_user_id: null,
-    preferred_channel: "email",
-    auth_user_id: null,
-    note: "初學者",
-    created_at: "2026-07-06T00:00:00+08:00",
-    updated_at: "2026-07-06T00:00:00+08:00",
-  },
-  {
-    id: "33333333-3333-4333-8333-000000000003",
-    name: "林雅婷",
-    phone: "0933222111",
-    email: null,
-    line_user_id: null,
-    preferred_channel: "email",
-    auth_user_id: null,
-    note: "電話約課常客",
-    created_at: "2026-07-06T00:00:00+08:00",
-    updated_at: "2026-07-06T00:00:00+08:00",
-  },
-];
-
-const demoRequests: BookingRequest[] = [];
-
-(function seedDemoPending() {
-  const groupSlots = demoSlots.filter(
-    (s) =>
-      s.course_id === "22222222-2222-4222-8222-000000000002" &&
-      s.booked_count < s.capacity &&
-      new Date(s.starts_at).getTime() > Date.now(),
-  );
-  if (groupSlots.length === 0) return;
-
-  const reqId = "55555555-5555-4555-8555-000000000002";
-  demoRequests.push({
-    id: reqId,
-    client_id: "33333333-3333-4333-8333-000000000002",
-    booking_id: "BK-DEMO-PENDING1",
-    status: "pending",
-    course_id: groupSlots[0].course_id,
-    resource_id: null,
-    starts_at: null,
-    ends_at: null,
-    note: "第一次滑雪,平日下午佳",
-    notify_channel: "email",
-    notified_at: new Date().toISOString(),
-    gcal_event_id: null,
-    company_gcal_event_id: null,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  });
-
-  (globalThis as { __demoRequestSlots?: RequestSlot[] }).__demoRequestSlots =
-    groupSlots.slice(0, 3).map((s, i) => ({
-      request_id: reqId,
-      slot_id: s.id,
-      preference_order: i + 1,
-    }));
-})();
-
-function getDemoRequestSlots(): RequestSlot[] {
-  return (globalThis as { __demoRequestSlots?: RequestSlot[] }).__demoRequestSlots ?? [];
-}
+void availabilityRules;
+void buildDateOverrides(DEMO_TODAY);
 
 // --- Interface ---------------------------------------------------------------
 
@@ -332,7 +256,7 @@ const demoAdmin: AdminDataSource = {
         ? () => true
         : (r: BookingRequest) => r.status === status;
     const reqs = demoRequests.filter(filter);
-    const prefs = getDemoRequestSlots();
+    const prefs = demoRequestSlots;
     const activeResources = demoResources();
     const activeCourses = courses.filter((c) => c.is_active);
 
@@ -524,7 +448,3 @@ export async function getAdminDataSource(): Promise<AdminDataSource> {
   if (hasSupabaseEnv()) return supabaseAdmin;
   return demoAdmin;
 }
-
-// silence unused import warnings for demo seed
-void availabilityRules;
-void demoOverrides;
