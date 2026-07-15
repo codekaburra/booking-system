@@ -17,16 +17,35 @@
 | P7 | Google Calendar one-way push | ⬜ Not started | |
 | P8 | Instant mode B (time-range booking, anti-overlap) | ⬜ Not started | |
 
-## ⚠️ Next action (as of 2026-07-14)
+## ⚠️ Next action (as of 2026-07-15)
 
-**Start P6** (polish: slot-generation cron, reminders, self-cancel, notifications log).
-Branch off `p5-client-settings` (or merge stack to `main` first per process note below).
+**Build the BRANCHES (分店) feature** — see PLAN.md §14. This is the immediate priority,
+before P6/P8, because it adds `branch_id` to the schedule model those phases build on.
 
-P5 delivered: client login/signup (Supabase Auth + demo phone login), My bookings
-(logged-in list + guest phone+booking_id lookup), `getBookingByCode`, status page
-with real state, booking form autofill, admin settings (courses/resources/hours,
-`resource_courses` editor, special dates + holiday import + conflict check),
-client management list. Migration `0004_resource_courses.sql`.
+### Course correction that just happened (read this)
+Two local, unpushed commits (`8664383` two-shop demo, `067f3ef` URL shop routing) took the
+WRONG direction: they modeled **two different businesses** (snowboard school + self-service
+tennis) as co-tenants in one deployment (URL `/snowboard` `/tennis`, shop switcher, middleware,
+`src/config/shops/*`, `src/lib/data/demo/shops/*`, `shop-path.ts`). That both (a) contradicts
+the "one deploy = one shop" architecture and (b) conflates different businesses.
+**What the user actually wants: one business with multiple 分店 (branches/locations).**
+- These two commits were **reverted** (`git reset --hard` to `0cf843b` = clean single-shop P5).
+- They are preserved in tag **`backup/two-shop-experiment-20260715`** — nothing lost.
+- **Salvage from that tag**: `src/components/timetable/DayResourceGrid.tsx` (266-line resource-column
+  day grid — columns = resources, rows = time; great for a branch with many courts/coaches) plus
+  the `src/lib/timetable.ts` additions it needs. Re-integrate into the branches timetable
+  (`git show backup/two-shop-experiment-20260715:src/components/timetable/DayResourceGrid.tsx`).
+  Do NOT bring back shop-path/middleware-shop-routing/shops-config/DemoShopSwitcher.
+
+### Confirmed branch model (2026-07-15)
+- **One deploy, branches as DATA** (not per-branch deploy, not multi-tenant shops).
+- **Each resource belongs to a single branch** (`resources.branch_id`).
+- **Courses are a shared catalog** across branches (no `branch_id` on `courses`).
+- Customer picks a branch → sees that branch's timetable/availability → books.
+
+P5 delivered (still intact after revert): client login/signup, My bookings, `getBookingByCode`,
+status page, booking autofill, admin settings (courses/resources/hours, `resource_courses` editor,
+special dates + holiday import + conflict check), client management. Migrations through `0004`.
 
 ## Plan review (2026-07-08) — decisions now recorded in PLAN.md, land in the phases below
 Architecture (8 tables, two modes, per-shop deploy, RPC transactions, tz contract) is sound —

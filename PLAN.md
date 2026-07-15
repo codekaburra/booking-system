@@ -422,3 +422,54 @@ Two documents; both developer and reviewer must follow them:
 - CSV export: for owner reports (half a day when needed).
 - Self-service facility door access (smart lock / codes): **out of scope**; use booking_id at the counter / fixed code initially.
 - Mode B payments (unmanned facilities usually require prepayment): evaluate at P8.
+
+---
+
+## 14. Branches (分店) — one business, multiple locations
+
+Added 2026-07-15 after a course correction. **This is NOT multi-tenant / multiple shops.**
+A prior experiment modeled two *different* businesses (snowboard + tennis) as co-tenants in one
+deploy (URL `/snowboard` `/tennis`, shop switcher) — that was reverted (tag
+`backup/two-shop-experiment-20260715`). The real requirement: **one business (one deploy, one
+brand, one admin, one shared client base) with multiple physical branches/locations.**
+
+### Confirmed model
+- **One deployment, branches as DATA** (not per-branch deploy). `shop.config.ts` stays one brand;
+  branches live in the DB and are admin-managed.
+- **Each resource belongs to a single branch** (`resources.branch_id`).
+- **Courses are a shared catalog** across branches (no `branch_id` on `courses`; price/duration/
+  capacity are business-wide). `resource_courses` unchanged.
+- **Clients are shared** business-wide (one person, one client, can book at any branch).
+- Customer flow: **pick a branch** → that branch's timetable / availability → book. A
+  single-branch business hides the branch step (one default branch, transparent).
+
+### Schema (new migration `0005_branches.sql` — 0001 stays frozen)
+- `branches`: `id, name, slug, address, timezone (default shop tz), is_active, sort_order`.
+- `resources` += `branch_id` (NOT NULL → branches).
+- `date_overrides` += `branch_id` (a closure/holiday is per-branch; `resource_id` still nullable
+  = whole branch). Business-wide holiday import writes one row per active branch.
+- `slots` += `branch_id` (denormalized from its resource for fast per-branch timetable queries).
+- `booking_requests` += `branch_id` (which branch the booking is at; set at create/approve).
+- `availability_rules`: branch is derivable via `resource_id` → keep as-is (no `branch_id`).
+- Backfill: existing single-shop rows get a default seeded branch.
+
+### Screens / behavior
+- **Branch selector** on the customer side (landing or a picker in site-chrome); choice persisted
+  (cookie/searchParam). URL-per-branch is optional and NOT the reverted shop-routing — decide later.
+- **Timetable** scoped to the chosen branch. Re-integrate the salvaged
+  `src/components/timetable/DayResourceGrid.tsx` (resource-column day grid — columns = a branch's
+  resources, rows = time; ideal when a branch has many courts/coaches). Recover it via
+  `git show backup/two-shop-experiment-20260715:src/components/timetable/DayResourceGrid.tsx`
+  and the `src/lib/timetable.ts` helpers it needs. Do NOT restore shop-path / shop routing.
+- **Booking form** scoped to the chosen branch (only that branch's resources/slots).
+- **Admin**: a Branches CRUD screen; resources / hours / overrides are edited per branch; the
+  request inbox, client list, and clients span all branches (each booking shows its branch).
+- **Slot generation (P6)**: per branch × its resources × their mapped courses.
+
+### Demo/seed
+- Seed the snowboard school with **2 branches** (e.g. 台北內湖店 / 台中店), resources split across
+  them, so the feature is exercised. Keep the today-relative rich demo generator, now per-branch.
+
+### Phase placement
+Do this **before P6/P8** (they build on the schedule model that now carries `branch_id`).
+Track as its own branch off clean P5 (`0cf843b`).
