@@ -33,6 +33,7 @@ export function buildInboxItem(
             ...(() => {
               const slot = {
                 id: "",
+                branch_id: req.branch_id,
                 course_id: req.course_id,
                 resource_id: req.resource_id!,
                 starts_at: req.starts_at!,

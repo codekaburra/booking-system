@@ -14,6 +14,7 @@
 
 import type {
   AvailabilityRule,
+  Branch,
   Course,
   DateOverride,
   Resource,
@@ -29,6 +30,37 @@ const SEED = "booking-demo-v1";
 
 const SEEDED_AT = "2026-07-06T00:00:00+08:00";
 
+/** 分店(與 seed.sql 的兩間分店一致) */
+export const BRANCH = {
+  neihu: "00000000-0000-4000-8000-000000000001",
+  taichung: "00000000-0000-4000-8000-000000000002",
+} as const;
+
+export const branches: Branch[] = [
+  {
+    id: BRANCH.neihu,
+    name: "台北內湖店",
+    slug: "neihu",
+    address: "台北市內湖區成功路四段 1 號",
+    timezone: "Asia/Taipei",
+    is_active: true,
+    sort_order: 1,
+    created_at: SEEDED_AT,
+    updated_at: SEEDED_AT,
+  },
+  {
+    id: BRANCH.taichung,
+    name: "台中店",
+    slug: "taichung",
+    address: "台中市西屯區台灣大道三段 2 號",
+    timezone: "Asia/Taipei",
+    is_active: true,
+    sort_order: 2,
+    created_at: SEEDED_AT,
+    updated_at: SEEDED_AT,
+  },
+];
+
 export const RES = {
   xiaoming: "11111111-1111-4111-8111-000000000001",
   ahua: "11111111-1111-4111-8111-000000000002",
@@ -41,9 +73,11 @@ export const COURSE = {
   kids60: "22222222-2222-4222-8222-000000000003",
 } as const;
 
+/** 資源分屬兩間分店(同 seed.sql):小明 + 阿華 @ 內湖、佩佩 @ 台中 */
 export const resources: Resource[] = [
   {
     id: RES.xiaoming,
+    branch_id: BRANCH.neihu,
     type: "instructor",
     name: "小明教練",
     photo: null,
@@ -55,6 +89,7 @@ export const resources: Resource[] = [
   },
   {
     id: RES.ahua,
+    branch_id: BRANCH.neihu,
     type: "instructor",
     name: "阿華教練",
     photo: null,
@@ -66,6 +101,7 @@ export const resources: Resource[] = [
   },
   {
     id: RES.peipei,
+    branch_id: BRANCH.taichung,
     type: "instructor",
     name: "佩佩教練",
     photo: null,
@@ -168,8 +204,17 @@ export const availabilityRules: AvailabilityRule[] = [
   rule(RES.peipei, 0, "09:00", "17:00"),
 ];
 
-// 有排班的星期集合(全體 / 阿華),供挑選「看得到效果」的 override 日期。
-const shiftWeekdays = new Set(availabilityRules.map((r) => r.weekday));
+/** 資源 → 分店 對照(產生器全域共用) */
+const branchOfResource = new Map(resources.map((r) => [r.id, r.branch_id]));
+
+// 有排班的星期集合(內湖店全體 / 阿華),供挑選「看得到效果」的 override 日期。
+// 用「內湖店的」而非全事業的:下方的分店級 special_hours 掛在內湖,挑到台中才有
+// 排班的日子就看不出效果了。
+const neihuShiftWeekdays = new Set(
+  availabilityRules
+    .filter((r) => branchOfResource.get(r.resource_id) === BRANCH.neihu)
+    .map((r) => r.weekday),
+);
 const ahuaShiftWeekdays = new Set(
   availabilityRules.filter((r) => r.resource_id === RES.ahua).map((r) => r.weekday),
 );
@@ -192,13 +237,15 @@ function firstOpenDateFrom(
 /**
  * date_overrides:相對今天、且**保證看得到效果**的兩個示範 override,
  * 讓 /timetable 與 /book 都能持續展示:
- *   1. 全店 special_hours(≈today+3:上午公休、只開下午)—— 落在有排班的日子才會被裁切。
+ *   1. **分店級** special_hours(≈today+3:內湖店上午公休、只開下午)—— 落在
+ *      內湖店有排班的日子才會被裁切;resource_id = null 現在的語意是「該分店全店」,
+ *      不影響台中店。
  *   2. 資源級 closed(≈today+5:阿華請假整天)—— 落在阿華本有排班的日子才看得出「休」。
  * 由於固定偏移可能撞到公休星期(週一無人排班),此處自該偏移往後找最近的有排班日,
  * 仍為決定性(給定 today 唯一)。
  */
 export function buildDateOverrides(today: string): DateOverride[] {
-  const specialDate = firstOpenDateFrom(today, 3, (wd) => shiftWeekdays.has(wd));
+  const specialDate = firstOpenDateFrom(today, 3, (wd) => neihuShiftWeekdays.has(wd));
   const leaveDate = firstOpenDateFrom(
     today,
     5,
@@ -209,7 +256,8 @@ export function buildDateOverrides(today: string): DateOverride[] {
     {
       id: "77777777-7777-4777-8777-000000000001",
       date: specialDate,
-      resource_id: null,
+      branch_id: BRANCH.neihu,
+      resource_id: null, // = 內湖店全店(不影響台中店)
       type: "special_hours",
       start_time: "13:00:00",
       end_time: "18:00:00",
@@ -219,6 +267,7 @@ export function buildDateOverrides(today: string): DateOverride[] {
     {
       id: "77777777-7777-4777-8777-000000000002",
       date: leaveDate,
+      branch_id: BRANCH.neihu, // 阿華屬內湖 → 必須一致(DB trigger 亦會擋)
       resource_id: RES.ahua,
       type: "closed",
       start_time: null,
@@ -283,62 +332,81 @@ export function occupancyFor(
 }
 
 /**
- * 產生 today … today+RANGE_DAYS 的 slots。
- * 對每個啟用資源、每一天、該資源當天(套用 override 優先權後的)有效開放時段,
- * 以該資源當天挑到的課程 duration 鋪滿;每格再依佔用率梯度指定 booked_count。
+ * 產生 today … today+RANGE_DAYS 的 slots,**逐分店**產生:
+ *   每間啟用分店 × 該分店的啟用資源 × 該資源可教的課程 × 該資源當天
+ *   (套用 override 優先權後的)有效開放時段。
+ * 每格再依佔用率梯度指定 booked_count。
+ *
+ * 分店級 override(resource_id = null)只會影響同分店的資源:resolveResourceDay
+ * 收到的 overrides 已先依分店過濾,所以內湖的「上午公休」不會裁到台中的佩佩。
+ *
+ * slot.branch_id 一律 = 該 resource 的 branch_id(與 0005 的 DB trigger 同一條規則)。
+ *
+ * 決定性:PRNG key 用 resource **id**(非陣列索引),日後增減分店/資源不會讓
+ * 其他資源的資料整組位移。
  */
 export function generateSlots(today: string): Slot[] {
   const overrides = buildDateOverrides(today);
   const courseById = new Map(courses.map((c) => [c.id, c]));
-  const activeResources = resources.filter((r) => r.is_active);
+  const activeBranches = branches.filter((b) => b.is_active);
   const out: Slot[] = [];
   let seq = 0;
 
-  for (let d = 0; d <= RANGE_DAYS; d++) {
-    const date = addDays(today, d);
-    activeResources.forEach((res, resIdx) => {
-      // override 優先權(closed / special_hours)已在此解出 → 直接鋪這些窗
-      const { windows } = resolveResourceDay(
-        res.id,
-        date,
-        availabilityRules,
-        overrides,
-      );
-      if (windows.length === 0) return; // 當天無排班或整日休 → 不產生 slot
+  for (const branch of activeBranches) {
+    const branchResources = resources.filter(
+      (r) => r.is_active && r.branch_id === branch.id,
+    );
+    // 該分店的 override:分店級(resource_id = null)+ 該分店資源的資源級
+    const branchOverrides = overrides.filter((o) => o.branch_id === branch.id);
 
-      // 當天為此資源挑一門課(決定性)
-      const candidates = resourceCourses[res.id] ?? [];
-      if (candidates.length === 0) return;
-      const pick = Math.floor(
-        rngFrom(`${date}:${resIdx}:course`)() * candidates.length,
-      );
-      const course = courseById.get(candidates[pick]);
-      if (!course) return;
-      const dur = course.duration_min;
+    for (let d = 0; d <= RANGE_DAYS; d++) {
+      const date = addDays(today, d);
+      for (const res of branchResources) {
+        // override 優先權(closed / special_hours)已在此解出 → 直接鋪這些窗
+        const { windows } = resolveResourceDay(
+          res.id,
+          date,
+          availabilityRules,
+          branchOverrides,
+        );
+        if (windows.length === 0) continue; // 當天無排班或整日休 → 不產生 slot
 
-      for (const w of windows) {
-        const n = Math.floor((w.endMin - w.startMin) / dur);
-        for (let i = 0; i < n; i++) {
-          const startMin = w.startMin + i * dur;
-          const endMin = startMin + dur;
-          const rng = rngFrom(`${date}:${resIdx}:${startMin}`);
-          const booked = occupancyFor(d, course.capacity, rng);
-          seq += 1;
-          out.push({
-            id: `44444444-4444-4444-8444-${String(seq).padStart(12, "0")}`,
-            course_id: course.id,
-            resource_id: res.id,
-            starts_at: `${date}T${formatMinutes(startMin)}:00+08:00`,
-            ends_at: `${date}T${formatMinutes(endMin)}:00+08:00`,
-            capacity: course.capacity,
-            booked_count: booked,
-            created_at: SEEDED_AT,
-            updated_at: SEEDED_AT,
-          });
+        // 當天為此資源挑一門課(決定性)
+        const candidates = resourceCourses[res.id] ?? [];
+        if (candidates.length === 0) continue;
+        const pick = Math.floor(
+          rngFrom(`${date}:${res.id}:course`)() * candidates.length,
+        );
+        const course = courseById.get(candidates[pick]);
+        if (!course) continue;
+        const dur = course.duration_min;
+
+        for (const w of windows) {
+          const n = Math.floor((w.endMin - w.startMin) / dur);
+          for (let i = 0; i < n; i++) {
+            const startMin = w.startMin + i * dur;
+            const endMin = startMin + dur;
+            const rng = rngFrom(`${date}:${res.id}:${startMin}`);
+            const booked = occupancyFor(d, course.capacity, rng);
+            seq += 1;
+            out.push({
+              id: `44444444-4444-4444-8444-${String(seq).padStart(12, "0")}`,
+              branch_id: res.branch_id,
+              course_id: course.id,
+              resource_id: res.id,
+              starts_at: `${date}T${formatMinutes(startMin)}:00+08:00`,
+              ends_at: `${date}T${formatMinutes(endMin)}:00+08:00`,
+              capacity: course.capacity,
+              booked_count: booked,
+              created_at: SEEDED_AT,
+              updated_at: SEEDED_AT,
+            });
+          }
         }
       }
-    });
+    }
   }
 
-  return out;
+  // 逐分店產生 → 陣列先依分店分群;對外統一依 starts_at 排序,與 DB 查詢一致。
+  return out.sort((a, b) => a.starts_at.localeCompare(b.starts_at));
 }

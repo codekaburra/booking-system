@@ -1,22 +1,28 @@
 /**
  * 週曆 view model 計算(P2,純函式、無 I/O)。
  *
- * date_overrides 優先權合約(見 supabase/migrations/0001_init.sql):
+ * date_overrides 優先權合約(見 supabase/migrations/0001_init.sql、0005_branches.sql):
  *   1. date_overrides > availability_rules
  *   2. override 之間:closed > special_hours > extra_open
- *   3. 層級之間:資源級(resource_id 有值)> 全店級(resource_id = null)
+ *   3. 層級之間:資源級(resource_id 有值)> 分店級(resource_id = null)
  *
- * 本檔對合約的具體解讀(P5 slot 生成也應照此):
- * - 全店 closed        → 所有資源該日無開放(除非資源級 override 又把它打開)。
- * - 全店 special_hours → 各資源開放時段 = 自身 rules ∩ special 範圍
+ * ⚠️ **分店合約(0005 起)**:本檔所稱「分店級」= `resource_id = null` 的 override,
+ * 其適用範圍是**該 override 所屬的那一間分店**(不是全事業)。本檔為純函式、
+ * 不查 DB,無從自行過濾 → **呼叫端必須先把 overrides / resources / rules / slots
+ * 依單一分店過濾後再傳進來**(見 src/app/timetable/page.tsx)。混傳多間分店的資料
+ * 會讓 A 店的公休套到 B 店的資源上。
+ *
+ * 本檔對合約的具體解讀(P6 slot 生成也應照此):
+ * - 分店 closed        → 該店所有資源該日無開放(除非資源級 override 又把它打開)。
+ * - 分店 special_hours → 各資源開放時段 = 自身 rules ∩ special 範圍
  *                        (店只開這段;沒排班的資源不會因此變成有開)。
- * - 全店 extra_open    → 僅延伸「當日本就有排班(≥1 rule window)」的資源:
+ * - 分店 extra_open    → 僅延伸「當日本就有排班(≥1 rule window)」的資源:
  *                        該資源開放時段 ∪ extra 範圍;沒排班的資源不受影響
  *                        (與 special_hours 交集同理,不憑空開放未排班資源)。
  *                        要替特定未排班資源加開 → 用資源級 extra_open(無條件)。
- * - 資源級 closed        → 該資源整日休(蓋過全店級任何設定)。
- * - 資源級 special_hours → 該資源開放時段 = special 範圍(取代 rules 與全店級)。
- * - 資源級 extra_open    → 該資源開放時段 ∪ extra 範圍(全店 closed 時 = 只開這段)。
+ * - 資源級 closed        → 該資源整日休(蓋過分店級任何設定)。
+ * - 資源級 special_hours → 該資源開放時段 = special 範圍(取代 rules 與分店級)。
+ * - 資源級 extra_open    → 該資源開放時段 ∪ extra 範圍(分店 closed 時 = 只開這段)。
  * - 同層級同日多型並存時依 closed > special_hours > extra_open 處理。
  */
 

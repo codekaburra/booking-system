@@ -13,6 +13,7 @@ import "server-only";
 
 import type {
   AvailabilityRule,
+  Branch,
   Client,
   Course,
   DateOverride,
@@ -22,24 +23,43 @@ import type {
 import type { CreateBookingInput, CreateBookingResult } from "@/lib/booking/types";
 import { demoDataSource } from "./demo";
 
+/**
+ * 排程類查詢的分店過濾(PLAN.md §14)。
+ * 省略 = 不過濾(全事業;後台跨店總覽、Pass 1 尚未接 UI 的既有呼叫端)。
+ * 給值 = 只回該分店的資料。
+ *
+ * courses(共用型錄)與 clients(共用客戶)不吃這個參數 —— 它們本來就不分店。
+ */
+export type BranchFilter = string | undefined;
+
 export interface BookingDataSource {
-  /** 啟用中的資源(教練/房間…),依名稱排序 */
-  getResources(): Promise<Resource[]>;
-  /** 啟用中的課程 */
+  /** 啟用中的分店,依 sort_order → name 排序(分店選擇器用) */
+  getBranches(): Promise<Branch[]>;
+  /** 依 slug 找啟用中的分店;找不到回 null */
+  getBranchBySlug(slug: string): Promise<Branch | null>;
+  /** 啟用中的資源(教練/房間…),依名稱排序;branchId 給值則只回該分店的 */
+  getResources(branchId?: BranchFilter): Promise<Resource[]>;
+  /** 啟用中的課程(共用型錄,不分店) */
   getCourses(): Promise<Course[]>;
   /** 單一啟用中課程(表單步驟①/送出驗證用);找不到回 null */
   getCourseById(courseId: string): Promise<Course | null>;
   /**
    * weekStart = 台北週一 "YYYY-MM-DD"。
    * 回傳台北時間 [週一 00:00, 下週一 00:00) 範圍內的 slots,依 starts_at 排序。
+   * branchId 給值則只回該分店的 slots(週曆一次只看一間分店)。
    */
-  getWeekSlots(weekStart: string): Promise<Slot[]>;
+  getWeekSlots(weekStart: string, branchId?: BranchFilter): Promise<Slot[]>;
   /**
    * 某課程「可預約」的 slots(模式 A 表單步驟②):
    * course_id 相符、starts_at 在未來(now 之後)、booked_count < capacity,
    * 依 starts_at 排序。now 預設為呼叫時的現在。
+   * branchId 給值則只回該分店的 slots(同一課程在不同分店由不同教練開)。
    */
-  getBookableSlots(courseId: string, now?: Date): Promise<Slot[]>;
+  getBookableSlots(
+    courseId: string,
+    now?: Date,
+    branchId?: BranchFilter,
+  ): Promise<Slot[]>;
   /**
    * 某課程「未來的全部 slots」(模式 A 月曆日檢視用):course_id 相符、
    * starts_at 在未來(now 之後),**含已額滿**(booked_count >= capacity),
@@ -47,11 +67,25 @@ export interface BookingDataSource {
    * 「未來但已額滿」的時段以 disabled「已額滿」列出,而非直接消失。
    * (可選 / 送出仍只認 getBookableSlots 的有空位者;server 端再驗一次。)
    */
-  getCourseSlots(courseId: string, now?: Date): Promise<Slot[]>;
-  /** [startDate, endDate](台北日期,含兩端)範圍內的 date_overrides */
-  getDateOverrides(startDate: string, endDate: string): Promise<DateOverride[]>;
-  /** 全部 availability_rules(推導時間軸與休息時段用) */
-  getAvailabilityRules(): Promise<AvailabilityRule[]>;
+  getCourseSlots(
+    courseId: string,
+    now?: Date,
+    branchId?: BranchFilter,
+  ): Promise<Slot[]>;
+  /**
+   * [startDate, endDate](台北日期,含兩端)範圍內的 date_overrides。
+   * branchId 給值則只回該分店的(resource_id 為 null = 該分店全店)。
+   */
+  getDateOverrides(
+    startDate: string,
+    endDate: string,
+    branchId?: BranchFilter,
+  ): Promise<DateOverride[]>;
+  /**
+   * availability_rules(推導時間軸與休息時段用)。
+   * 本表無 branch_id;branchId 給值時以「該分店的資源」反查過濾。
+   */
+  getAvailabilityRules(branchId?: BranchFilter): Promise<AvailabilityRule[]>;
 
   // --- 寫入(P3 模式 A 送出)---
   /** 依手機號查客戶(歸戶);找不到回 null */

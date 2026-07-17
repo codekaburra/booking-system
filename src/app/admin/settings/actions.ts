@@ -71,13 +71,18 @@ export async function deleteAvailabilityRuleAction(formData: FormData) {
   return { ok: true as const };
 }
 
+// TODO(branches-ui): Pass 2 的特殊日期表單要多一個「分店」欄位,並把 branchId 傳下去。
+// 目前:資源級 override 的分店由該資源推導(正確);分店級(未選資源)則落到
+// 第一間啟用分店(見 settings.ts 的 resolveOverrideBranchId)。
 export async function createOverrideAction(formData: FormData) {
   await guard();
   const ds = await getSettingsDataSource();
   const type = String(formData.get("type")) as "closed" | "special_hours" | "extra_open";
   const resourceId = String(formData.get("resource_id") ?? "").trim() || undefined;
+  const branchId = String(formData.get("branch_id") ?? "").trim() || undefined;
   await ds.createDateOverride({
     date: String(formData.get("date")),
+    branchId,
     resourceId,
     type,
     startTime: String(formData.get("start_time") ?? "") || undefined,
@@ -110,7 +115,10 @@ export async function checkAffectedAction(formData: FormData) {
   await guard();
   const date = String(formData.get("date"));
   const resourceId = String(formData.get("resource_id") ?? "").trim() || null;
+  // TODO(branches-ui): 分店級公休應只查該分店 → Pass 2 表單帶 branch_id 進來。
+  // 目前不帶 = 跨分店查(寧可多報也不漏報,漏報才會讓客人白跑)。
+  const branchId = String(formData.get("branch_id") ?? "").trim() || undefined;
   const ds = await getSettingsDataSource();
-  const affected = await ds.getAffectedBookings(date, resourceId);
+  const affected = await ds.getAffectedBookings(date, resourceId, branchId);
   return { ok: true as const, affected };
 }

@@ -55,12 +55,21 @@ export default async function TimetablePage({
   const weekEnd = addDays(weekStart, 6);
 
   const ds = await getDataSource();
+
+  // TODO(branches-ui): Pass 2 由分店選擇器決定要看哪一間(cookie / searchParam),
+  // 這裡先固定第一間啟用分店。**不可**改成不帶 branchId:週曆一次只能顯示一間分店,
+  // 因為 date_overrides 的 resource_id = null 現在代表「該分店全店」,混著多間分店
+  // 的 override 會把 A 店的公休套到 B 店的資源上(buildWeekView / resolveResourceDay
+  // 收到的資料必須已依分店過濾)。
+  const branches = await ds.getBranches();
+  const branchId = branches[0]?.id;
+
   const [resources, courses, slots, overrides, rules] = await Promise.all([
-    ds.getResources(),
-    ds.getCourses(),
-    ds.getWeekSlots(weekStart),
-    ds.getDateOverrides(weekStart, weekEnd),
-    ds.getAvailabilityRules(),
+    ds.getResources(branchId),
+    ds.getCourses(), // 課程為共用型錄,不分店
+    ds.getWeekSlots(weekStart, branchId),
+    ds.getDateOverrides(weekStart, weekEnd, branchId),
+    ds.getAvailabilityRules(branchId),
   ]);
 
   const selected = resources.find((r) => r.id === resourceParam) ?? null;

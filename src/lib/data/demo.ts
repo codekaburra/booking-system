@@ -15,6 +15,7 @@ import { defaultNotifyChannel } from "@/config/shop.config";
 import { addDays, taipeiInstant, taipeiToday } from "@/lib/tz";
 import {
   availabilityRules,
+  branches,
   buildDateOverrides,
   courses,
   resources,
@@ -30,9 +31,21 @@ import type { BookingDataSource } from "./index";
 const DEMO_TODAY = taipeiToday();
 const dateOverrides = buildDateOverrides(DEMO_TODAY);
 
+/** branchId 省略 = 不過濾(全事業);與 supabase-source 的行為一致 */
+const inBranch = (rowBranchId: string, branchId?: string) =>
+  !branchId || rowBranchId === branchId;
+
 export const demoDataSource: BookingDataSource = {
-  async getResources() {
-    return resources.filter((r) => r.is_active);
+  async getBranches() {
+    return branches
+      .filter((b) => b.is_active)
+      .sort((a, b) => a.sort_order - b.sort_order || a.name.localeCompare(b.name));
+  },
+  async getBranchBySlug(slug) {
+    return branches.find((b) => b.slug === slug && b.is_active) ?? null;
+  },
+  async getResources(branchId) {
+    return resources.filter((r) => r.is_active && inBranch(r.branch_id, branchId));
   },
   async getCourses() {
     return courses.filter((c) => c.is_active);
@@ -40,12 +53,13 @@ export const demoDataSource: BookingDataSource = {
   async getCourseById(courseId) {
     return courses.find((c) => c.id === courseId && c.is_active) ?? null;
   },
-  async getBookableSlots(courseId, now = new Date()) {
+  async getBookableSlots(courseId, now = new Date(), branchId) {
     const nowMs = now.getTime();
     return demoSlots
       .filter(
         (s) =>
           s.course_id === courseId &&
+          inBranch(s.branch_id, branchId) &&
           new Date(s.starts_at).getTime() > nowMs &&
           s.booked_count < s.capacity,
       )
@@ -54,12 +68,13 @@ export const demoDataSource: BookingDataSource = {
           new Date(a.starts_at).getTime() - new Date(b.starts_at).getTime(),
       );
   },
-  async getCourseSlots(courseId, now = new Date()) {
+  async getCourseSlots(courseId, now = new Date(), branchId) {
     const nowMs = now.getTime();
     return demoSlots
       .filter(
         (s) =>
           s.course_id === courseId &&
+          inBranch(s.branch_id, branchId) &&
           new Date(s.starts_at).getTime() > nowMs,
       )
       .sort(
@@ -67,11 +82,12 @@ export const demoDataSource: BookingDataSource = {
           new Date(a.starts_at).getTime() - new Date(b.starts_at).getTime(),
       );
   },
-  async getWeekSlots(weekStart) {
+  async getWeekSlots(weekStart, branchId) {
     const from = taipeiInstant(weekStart).getTime();
     const to = taipeiInstant(addDays(weekStart, 7)).getTime();
     return demoSlots
       .filter((s) => {
+        if (!inBranch(s.branch_id, branchId)) return false;
         const t = new Date(s.starts_at).getTime();
         return t >= from && t < to;
       })
@@ -80,13 +96,21 @@ export const demoDataSource: BookingDataSource = {
           new Date(a.starts_at).getTime() - new Date(b.starts_at).getTime(),
       );
   },
-  async getDateOverrides(startDate, endDate) {
+  async getDateOverrides(startDate, endDate, branchId) {
     return dateOverrides.filter(
-      (o) => o.date >= startDate && o.date <= endDate,
+      (o) =>
+        o.date >= startDate &&
+        o.date <= endDate &&
+        inBranch(o.branch_id, branchId),
     );
   },
-  async getAvailabilityRules() {
-    return [...availabilityRules];
+  async getAvailabilityRules(branchId) {
+    if (!branchId) return [...availabilityRules];
+    // 本表無 branch_id → 以「該分店的資源」反查(同 supabase-source)
+    const ids = new Set(
+      resources.filter((r) => r.branch_id === branchId).map((r) => r.id),
+    );
+    return availabilityRules.filter((r) => ids.has(r.resource_id));
   },
 
   async findClientByPhone(phone) {
@@ -102,6 +126,16 @@ export const demoDataSource: BookingDataSource = {
     if (!input.slotIds || input.slotIds.length === 0) {
       throw new Error("slots_required");
     }
+
+    // 分店一致性(與 0005 的 create_booking_request 同一條規則):
+    // 一筆預約只發生在一間分店 → 志願跨分店直接擋。
+    const pickedSlots = input.slotIds
+      .map((id) => demoSlots.find((s) => s.id === id))
+      .filter((s) => s !== undefined);
+    const branchIds = new Set(pickedSlots.map((s) => s.branch_id));
+    if (branchIds.size > 1) throw new Error("mixed_branch");
+    const branchId = pickedSlots[0]?.branch_id;
+    if (!branchId) throw new Error("slot_unavailable");
 
     let client = demoClients.find((c) => c.phone === normalized);
     if (client) {
@@ -134,6 +168,7 @@ export const demoDataSource: BookingDataSource = {
       booking_id: bookingId,
       status: "pending",
       course_id: input.courseId,
+      branch_id: branchId,
       resource_id: null,
       starts_at: null,
       ends_at: null,

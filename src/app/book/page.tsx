@@ -63,9 +63,16 @@ export default async function BookPage() {
   const ds = await getDataSource();
   const now = new Date();
   const clientSession = await getClientSession();
+
+  // TODO(branches-ui): Pass 2 由分店選擇器決定;先固定第一間啟用分店。
+  // 表單一次只能約一間分店 —— 志願跨分店會被 create_booking_request 以
+  // mixed_branch 擋下(見 0005),所以可選 slot 必須先依分店收斂。
+  const branches = await ds.getBranches();
+  const branchId = branches[0]?.id;
+
   const [courseRows, resources] = await Promise.all([
-    ds.getCourses(),
-    ds.getResources(),
+    ds.getCourses(), // 課程為共用型錄,不分店
+    ds.getResources(branchId),
   ]);
 
   const courses: BookableCourse[] = courseRows.map((c) => ({
@@ -80,7 +87,7 @@ export default async function BookPage() {
   // 月曆日檢視需要把「未來但額滿」的時段以 disabled 列出(而非消失);
   // 是否可勾選 = 有空位(booked < capacity),由 client 端判斷。
   const slotLists = await Promise.all(
-    courseRows.map((c) => ds.getCourseSlots(c.id, now)),
+    courseRows.map((c) => ds.getCourseSlots(c.id, now, branchId)),
   );
   const slotsByCourse: Record<string, BookableSlot[]> = {};
   courseRows.forEach((c, i) => {

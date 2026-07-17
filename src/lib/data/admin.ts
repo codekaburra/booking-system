@@ -42,8 +42,13 @@ void buildDateOverrides(DEMO_TODAY);
 // --- Interface ---------------------------------------------------------------
 
 export interface AdminDataSource {
+  /**
+   * 收件匣**跨分店**(全事業):老闆一個後台看所有分店的申請。
+   * (每筆預約自己帶 branch_id;Pass 2 的 UI 會顯示分店並提供篩選。)
+   */
   getInbox(status?: "pending" | "approved" | "all"): Promise<InboxItem[]>;
-  getManualSlotOptions(): Promise<ManualSlotOption[]>;
+  /** 手動約課的可選 slot;branchId 給值則只列該分店的(排程類查詢 → 可依分店過濾) */
+  getManualSlotOptions(branchId?: string): Promise<ManualSlotOption[]>;
   approve(requestId: string, slotId: string): Promise<string>;
   reject(requestId: string, reason?: string): Promise<string>;
   cancel(requestId: string, reason?: string): Promise<string>;
@@ -116,18 +121,18 @@ const supabaseAdmin: AdminDataSource = {
     );
   },
 
-  async getManualSlotOptions() {
+  async getManualSlotOptions(branchId) {
     const ds = await getDataSource();
     const now = new Date();
     const [courseRows, resources] = await Promise.all([
-      ds.getCourses(),
-      ds.getResources(),
+      ds.getCourses(), // 課程為共用型錄,不分店
+      ds.getResources(branchId),
     ]);
     const resourceMap = new Map(resources.map((r) => [r.id, r]));
     const courseMap = new Map(courseRows.map((c) => [c.id, c]));
 
     const lists = await Promise.all(
-      courseRows.map((c) => ds.getBookableSlots(c.id, now)),
+      courseRows.map((c) => ds.getBookableSlots(c.id, now, branchId)),
     );
 
     const out: ManualSlotOption[] = [];
@@ -216,8 +221,10 @@ const supabaseAdmin: AdminDataSource = {
     let resourceName: string | undefined;
     if (req.starts_at && req.ends_at && req.resource_id) {
       const res = resources.find((r) => r.id === req.resource_id);
+      // 僅為了借用 toBookableSlot 的格式化,不是真的 slot 列
       const slot: Slot = {
         id: "",
+        branch_id: req.branch_id,
         course_id: req.course_id,
         resource_id: req.resource_id,
         starts_at: req.starts_at,
@@ -245,8 +252,11 @@ const supabaseAdmin: AdminDataSource = {
 
 // --- Demo --------------------------------------------------------------------
 
-function demoResources() {
-  return resources.filter((r) => r.is_active);
+/** branchId 省略 = 全事業(收件匣跨分店);給值則只回該分店的資源 */
+function demoResources(branchId?: string) {
+  return resources.filter(
+    (r) => r.is_active && (!branchId || r.branch_id === branchId),
+  );
 }
 
 const demoAdmin: AdminDataSource = {
@@ -272,15 +282,16 @@ const demoAdmin: AdminDataSource = {
     );
   },
 
-  async getManualSlotOptions() {
+  async getManualSlotOptions(branchId) {
     const now = Date.now();
-    const activeResources = demoResources();
+    const activeResources = demoResources(branchId);
     const activeCourses = courses.filter((c) => c.is_active);
     const out: ManualSlotOption[] = [];
     for (const c of activeCourses) {
       for (const slot of demoSlots) {
         if (
           slot.course_id !== c.id ||
+          (branchId && slot.branch_id !== branchId) ||
           new Date(slot.starts_at).getTime() <= now ||
           slot.booked_count >= slot.capacity
         ) {
@@ -328,6 +339,7 @@ const demoAdmin: AdminDataSource = {
     slot.booked_count += 1;
     req.status = "approved";
     req.resource_id = slot.resource_id;
+    req.branch_id = slot.branch_id; // 以最終 slot 的分店為準(同 0005 的 approve RPC)
     req.starts_at = slot.starts_at;
     req.ends_at = slot.ends_at;
     req.updated_at = new Date().toISOString();
@@ -392,6 +404,7 @@ const demoAdmin: AdminDataSource = {
       booking_id: bookingId,
       status: "approved",
       course_id: slot.course_id,
+      branch_id: slot.branch_id,
       resource_id: slot.resource_id,
       starts_at: slot.starts_at,
       ends_at: slot.ends_at,
@@ -419,6 +432,7 @@ const demoAdmin: AdminDataSource = {
       const view = toBookableSlot(
         {
           id: "",
+          branch_id: req.branch_id,
           course_id: req.course_id,
           resource_id: req.resource_id,
           starts_at: req.starts_at,

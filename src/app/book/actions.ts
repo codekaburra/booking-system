@@ -60,6 +60,9 @@ export async function createBookingAction(
   }
 
   // 2. 可用性重驗:以「當下」可預約 slots 比對(競態防線)
+  // 這裡**刻意不帶 branchId**:送出時分店由使用者選的 slot 決定,不該由本層預設一間
+  // 分店去篩(那會讓非預設分店的預約在重驗階段全數落榜)。「志願不可跨分店」由
+  // createBooking 內的 mixed_branch 檢查負責(0005 RPC + demo 同一條規則)。
   const now = new Date();
   const [slots, resources] = await Promise.all([
     ds.getBookableSlots(input.courseId, now),
@@ -92,6 +95,14 @@ export async function createBookingAction(
       return {
         ok: false,
         fieldErrors: [{ field: "slots", message: "同一時段不可重複選為志願" }],
+      };
+    }
+    if (msg.includes("mixed_branch")) {
+      return {
+        ok: false,
+        fieldErrors: [
+          { field: "slots", message: "志願不可跨分店,請只選同一間分店的時段" },
+        ],
       };
     }
     return { ok: false, message: "送出失敗,請稍後再試。" };
