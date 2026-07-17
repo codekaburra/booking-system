@@ -1,5 +1,7 @@
 import Link from "next/link";
 import { shopConfig } from "@/config/shop.config";
+import { getBranchSelection } from "@/lib/branch";
+import { BranchSelect } from "./BranchSelect";
 
 /** 導覽:P2 週曆、P3 線上預約、P5 我的預約 */
 const navItems = [
@@ -8,16 +10,33 @@ const navItems = [
   { label: "我的預約", href: "/my-bookings" },
 ] as const;
 
-export function SiteHeader({ active }: { active?: string }) {
+/**
+ * 前台頁首。
+ *
+ * 分店(PLAN.md §14):店名是**事業**名(shop.config.ts),分店選擇器在其右側。
+ * 啟用分店只有一間 → 完全不渲染選擇器:單店事業的介面上看不到「分店」這個概念,
+ * 也不會多一次點擊。
+ */
+export async function SiteHeader({ active }: { active?: string }) {
+  const { branches, selected, showSelector } = await getBranchSelection();
+
   return (
     <header className="border-b border-border bg-surface">
-      <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4 sm:px-6">
-        <Link
-          href="/"
-          className="font-serif text-lg font-medium tracking-wide"
-        >
-          {shopConfig.name}
-        </Link>
+      <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-x-4 gap-y-2 px-4 py-4 sm:px-6">
+        <div className="flex min-w-0 items-center gap-3">
+          <Link
+            href="/"
+            className="truncate font-serif text-lg font-medium tracking-wide"
+          >
+            {shopConfig.name}
+          </Link>
+          {showSelector && (
+            <BranchSelect
+              branches={branches.map((b) => ({ slug: b.slug, name: b.name }))}
+              selectedSlug={selected?.slug ?? null}
+            />
+          )}
+        </div>
         <nav aria-label="主選單" className="flex items-center gap-4 sm:gap-6">
           {navItems.map((item) => (
             <Link

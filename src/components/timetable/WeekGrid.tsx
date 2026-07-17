@@ -8,10 +8,8 @@
 import type { DayView, TimetableSlotView, WeekView } from "@/lib/timetable";
 import { restRanges } from "@/lib/timetable";
 import { formatMinutes } from "@/lib/tz";
-import { dayTagClasses, slotToneClasses } from "./slot-style";
+import { PX_PER_MIN, dayTagClasses, slotToneClasses } from "./slot-style";
 
-/** 1 分鐘 = 1.2px → 60 分課 72px、90 分課 108px(皆 ≥44px touch target) */
-const PX_PER_MIN = 1.2;
 const GRID_COLS = "3.25rem repeat(7, minmax(0, 1fr))";
 
 function SlotCell({

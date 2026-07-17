@@ -81,6 +81,24 @@ export interface DayTag {
   tone: "closed" | "special";
 }
 
+/**
+ * 單日內某一資源(教練/球場…)的欄視圖 —— 供「依資源分欄」的日檢視使用
+ * (DayResourceGrid:欄 = 該分店的資源、列 = 時間)。
+ */
+export interface ResourceColumnView {
+  id: string;
+  name: string;
+  /** 資源顏色(僅表頭色點,不做狀態填色) */
+  color: string | null;
+  /** 該資源當日被 override 關閉 */
+  closed: boolean;
+  closedReason: string | null;
+  /** 該資源當日有效開放時段(範圍外 = 休息陰影) */
+  openWindows: TimeWindow[];
+  /** 只屬於此資源的 slots(lane 於欄內重新配置) */
+  slots: TimetableSlotView[];
+}
+
 export interface DayView {
   date: string;
   /** "7/14" */
@@ -97,6 +115,8 @@ export interface DayView {
   /** 顯示中資源的有效開放時段聯集(範圍外 = 休息陰影) */
   openWindows: TimeWindow[];
   slots: TimetableSlotView[];
+  /** 各資源欄(依資源分欄的日檢視用;順序同 resources 傳入序) */
+  resources: ResourceColumnView[];
 }
 
 export interface WeekView {
@@ -410,6 +430,23 @@ export function buildWeekView(p: BuildWeekParams): WeekView {
       .sort((a, b) => a.startMin - b.startMin || a.endMin - b.endMin);
     assignLanes(daySlots);
 
+    // 依資源分欄:每欄複製自身 slots 並在欄內重新配置 lane(避免與整店 lane 混算)
+    const resourceColumns: ResourceColumnView[] = perResource.map((x) => {
+      const colSlots = daySlots
+        .filter((s) => s.resourceId === x.resource.id)
+        .map((s) => ({ ...s, lane: 0, laneCount: 1 }));
+      assignLanes(colSlots);
+      return {
+        id: x.resource.id,
+        name: x.resource.name,
+        color: x.resource.color,
+        closed: x.avail.closed,
+        closedReason: x.avail.closedReason,
+        openWindows: mergeWindows(x.avail.windows),
+        slots: colSlots,
+      };
+    });
+
     days.push({
       date,
       dateLabel: shortDateLabel(date),
@@ -420,6 +457,7 @@ export function buildWeekView(p: BuildWeekParams): WeekView {
       tags,
       openWindows,
       slots: daySlots,
+      resources: resourceColumns,
     });
   }
 

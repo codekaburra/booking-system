@@ -1,8 +1,13 @@
 /**
- * /timetable — 週曆 Timetable(P2,唯讀)
+ * /timetable — 週曆 Timetable(P2,唯讀;P-branches 起以分店為單位)
  *
  * - ?week=YYYY-MM-DD:任一日期,正規化為該週(台北)週一;預設本週。
- * - ?resource=<id>:單一資源視角;缺省 = 整店總覽。
+ * - ?resource=<id>:單一資源視角;缺省 = 該分店總覽。
+ * - ?view=day:整店視角下改看「依資源分欄的日檢視」(欄 = 該分店的資源);
+ *   缺省 = 週檢視。單一資源視角只有週檢視(分欄沒有意義)。
+ * - 分店:由 cookie 決定(src/lib/branch.ts);**一次只查一間分店**的
+ *   resources / slots / overrides / rules —— buildWeekView 是純函式、不會自己過濾,
+ *   混餵多分店資料會把 A 店的公休套到 B 店的資源上(見 src/lib/timetable.ts 檔頭)。
  * - Server component 查資料 + 計算 view model;互動(資源切換、手機單日
  *   切換)才用 client component。
  */
@@ -20,7 +25,9 @@ import {
   shortDateLabel,
   taipeiToday,
 } from "@/lib/tz";
+import { getBranchSelection } from "@/lib/branch";
 import { SiteFooter, SiteHeader } from "@/components/site-chrome";
+import { DayResourceGrid } from "@/components/timetable/DayResourceGrid";
 import { MobileDayView } from "@/components/timetable/MobileDayView";
 import { ResourceSelect } from "@/components/timetable/ResourceSelect";
 import { WeekGrid } from "@/components/timetable/WeekGrid";
@@ -35,9 +42,16 @@ function first(v: string | string[] | undefined): string | undefined {
   return Array.isArray(v) ? v[0] : v;
 }
 
-function weekHref(week: string, resourceId: string | null): string {
+type ViewMode = "week" | "day";
+
+function weekHref(
+  week: string,
+  resourceId: string | null,
+  view: ViewMode = "week",
+): string {
   const params = new URLSearchParams({ week });
   if (resourceId) params.set("resource", resourceId);
+  if (view === "day") params.set("view", "day");
   return `/timetable?${params.toString()}`;
 }
 
@@ -49,6 +63,7 @@ export default async function TimetablePage({
   const sp = await searchParams;
   const weekParam = first(sp.week);
   const resourceParam = first(sp.resource);
+  const view: ViewMode = first(sp.view) === "day" ? "day" : "week";
 
   const thisMonday = currentWeekMonday(); // 以 Asia/Taipei 計算「本週一」
   const weekStart = isValidDateStr(weekParam) ? mondayOf(weekParam) : thisMonday;
@@ -56,13 +71,12 @@ export default async function TimetablePage({
 
   const ds = await getDataSource();
 
-  // TODO(branches-ui): Pass 2 由分店選擇器決定要看哪一間(cookie / searchParam),
-  // 這裡先固定第一間啟用分店。**不可**改成不帶 branchId:週曆一次只能顯示一間分店,
-  // 因為 date_overrides 的 resource_id = null 現在代表「該分店全店」,混著多間分店
-  // 的 override 會把 A 店的公休套到 B 店的資源上(buildWeekView / resolveResourceDay
+  // 分店選擇器(cookie)決定要看哪一間。**不可**改成不帶 branchId:週曆一次只能顯示
+  // 一間分店,因為 date_overrides 的 resource_id = null 代表「該分店全店」,混著多間
+  // 分店的 override 會把 A 店的公休套到 B 店的資源上(buildWeekView / resolveResourceDay
   // 收到的資料必須已依分店過濾)。
-  const branches = await ds.getBranches();
-  const branchId = branches[0]?.id;
+  const { selected: branch, showSelector } = await getBranchSelection();
+  const branchId = branch?.id;
 
   const [resources, courses, slots, overrides, rules] = await Promise.all([
     ds.getResources(branchId),
@@ -92,6 +106,12 @@ export default async function TimetablePage({
   const resourceLabel = shopConfig.resourceLabels[shopConfig.resourceType];
   const navBtn =
     "flex h-11 w-11 items-center justify-center rounded-lg border border-border bg-surface text-lg text-text hover:border-primary hover:text-primary";
+  const toggleBtn = (on: boolean) =>
+    `flex h-11 items-center rounded-lg border px-3 text-sm ${
+      on
+        ? "border-primary bg-primary/15 font-medium text-primary"
+        : "border-border bg-surface text-text hover:border-primary hover:text-primary"
+    }`;
 
   return (
     <div className="flex flex-1 flex-col">
@@ -105,6 +125,8 @@ export default async function TimetablePage({
                 週課表
               </h1>
               <p className="mt-1 text-sm text-muted">
+                {/* 單一分店的事業不提「分店」二字(showSelector = false) */}
+                {showSelector && branch ? `${branch.name}・` : ""}
                 時間為台北時間(24 小時制)
                 {!hasSupabaseEnv() && "・目前顯示示範資料"}
               </p>
@@ -122,7 +144,7 @@ export default async function TimetablePage({
             <div className="flex items-center gap-2">
               <Link
                 aria-label="上一週"
-                href={weekHref(addDays(weekStart, -7), selected?.id ?? null)}
+                href={weekHref(addDays(weekStart, -7), selected?.id ?? null, view)}
                 className={navBtn}
               >
                 ‹
@@ -132,14 +154,14 @@ export default async function TimetablePage({
               </span>
               <Link
                 aria-label="下一週"
-                href={weekHref(addDays(weekStart, 7), selected?.id ?? null)}
+                href={weekHref(addDays(weekStart, 7), selected?.id ?? null, view)}
                 className={navBtn}
               >
                 ›
               </Link>
               {weekStart !== thisMonday && (
                 <Link
-                  href={weekHref(thisMonday, selected?.id ?? null)}
+                  href={weekHref(thisMonday, selected?.id ?? null, view)}
                   className="flex h-11 items-center rounded-lg border border-border bg-surface px-3 text-sm text-text hover:border-primary hover:text-primary"
                 >
                   回本週
@@ -151,8 +173,34 @@ export default async function TimetablePage({
               options={resources.map((r) => ({ id: r.id, name: r.name }))}
               selectedId={selected?.id ?? null}
               week={weekStart}
+              view={view}
               label={resourceLabel}
             />
+
+            {/* 檢視切換:週(欄 = 日)/ 單日(欄 = 該分店的資源)。
+                單一資源視角沒有分欄的意義 → 不提供。 */}
+            {!selected && (
+              <div
+                role="group"
+                aria-label="檢視方式"
+                className="flex items-center gap-1"
+              >
+                <Link
+                  href={weekHref(weekStart, null, "week")}
+                  aria-current={view === "week" ? "true" : undefined}
+                  className={toggleBtn(view === "week")}
+                >
+                  週檢視
+                </Link>
+                <Link
+                  href={weekHref(weekStart, null, "day")}
+                  aria-current={view === "day" ? "true" : undefined}
+                  className={toggleBtn(view === "day")}
+                >
+                  單日・分{resourceLabel}
+                </Link>
+              </div>
+            )}
           </div>
 
           {/* 圖例:狀態 + (整店視角)資源色點,可點選篩選 */}
@@ -170,6 +218,7 @@ export default async function TimetablePage({
               休息/已過
             </span>
             {!selected &&
+              view === "week" &&
               resources.map((r) => (
                 <Link
                   key={r.id}
@@ -188,14 +237,28 @@ export default async function TimetablePage({
           </div>
         </div>
 
-        {/* 桌面:7 欄週格線 */}
-        <div className="hidden md:block">
-          <WeekGrid week={week} />
-        </div>
-        {/* 手機:一次一天 */}
-        <div className="md:hidden">
-          <MobileDayView week={week} initialDate={mobileInitialDate} />
-        </div>
+        {resources.length === 0 ? (
+          <p className="rounded-xl border border-border bg-surface p-8 text-center text-sm text-muted">
+            {showSelector && branch
+              ? `${branch.name}目前沒有可預約的${resourceLabel}。`
+              : `目前沒有可預約的${resourceLabel}。`}
+          </p>
+        ) : view === "day" ? (
+          // 單日・依資源分欄:欄 = 該分店的資源(教練/場地多時一眼看完當天狀況)。
+          // 自帶日期切換與橫向捲動 → 桌機/手機同一元件。
+          <DayResourceGrid week={week} initialDate={mobileInitialDate} />
+        ) : (
+          <>
+            {/* 桌面:7 欄週格線 */}
+            <div className="hidden md:block">
+              <WeekGrid week={week} />
+            </div>
+            {/* 手機:一次一天 */}
+            <div className="md:hidden">
+              <MobileDayView week={week} initialDate={mobileInitialDate} />
+            </div>
+          </>
+        )}
       </main>
 
       <SiteFooter />

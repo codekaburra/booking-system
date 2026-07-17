@@ -4,6 +4,13 @@
  * 顏色全走 CSS variables 對接的 Tailwind token,元件不 hardcode hex。
  */
 
+/**
+ * 時間軸比例:1 分鐘 = 1.2px → 60 分課 72px、90 分課 108px(皆 ≥44px touch target)。
+ * WeekGrid(欄 = 日)與 DayResourceGrid(欄 = 資源)共用同一比例,兩種檢視切換時
+ * 格子高度才一致。
+ */
+export const PX_PER_MIN = 1.2;
+
 interface SlotStatus {
   isPast: boolean;
   isFull: boolean;

@@ -14,6 +14,7 @@ import { taipeiToday } from "@/lib/tz";
 import { toBookableSlots } from "@/lib/booking/slot-view";
 import type { BookableCourse, BookableSlot } from "@/lib/booking/types";
 import { SiteFooter, SiteHeader } from "@/components/site-chrome";
+import { getBranchSelection } from "@/lib/branch";
 import { getClientSession } from "@/lib/auth/client";
 import { BookFlow } from "./BookFlow";
 import { createBookingAction } from "./actions";
@@ -64,11 +65,11 @@ export default async function BookPage() {
   const now = new Date();
   const clientSession = await getClientSession();
 
-  // TODO(branches-ui): Pass 2 由分店選擇器決定;先固定第一間啟用分店。
-  // 表單一次只能約一間分店 —— 志願跨分店會被 create_booking_request 以
-  // mixed_branch 擋下(見 0005),所以可選 slot 必須先依分店收斂。
-  const branches = await ds.getBranches();
-  const branchId = branches[0]?.id;
+  // 分店由選擇器(cookie)決定。表單一次只能約一間分店 —— 志願跨分店會被
+  // create_booking_request 以 mixed_branch 擋下(見 0005),所以可選 slot 必須
+  // 先依分店收斂。(送出時的 server 端重驗**刻意不帶 branchId**,見 actions.ts。)
+  const { selected: branch, showSelector } = await getBranchSelection();
+  const branchId = branch?.id;
 
   const [courseRows, resources] = await Promise.all([
     ds.getCourses(), // 課程為共用型錄,不分店
@@ -108,6 +109,19 @@ export default async function BookPage() {
             小時制)。
             {!hasSupabaseEnv() && "・目前為示範資料,送出不會實際成立預約。"}
           </p>
+          {/* 多分店事業:明示這次預約是哪一間分店(志願不可跨分店);單店則不提。
+              切換分店 = 頁首的選擇器。 */}
+          {showSelector && branch && (
+            <p className="mt-3 flex flex-wrap items-baseline gap-x-2 rounded-lg border border-border bg-surface px-4 py-3 text-sm">
+              <span className="font-medium text-text">{branch.name}</span>
+              {branch.address && (
+                <span className="text-xs text-muted">{branch.address}</span>
+              )}
+              <span className="text-xs text-muted">
+                ・以下時段只包含這間分店;要約其他分店請從上方切換。
+              </span>
+            </p>
+          )}
         </div>
 
         <BookFlow

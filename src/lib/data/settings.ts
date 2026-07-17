@@ -14,6 +14,7 @@ import type {
   Resource,
 } from "@/types/db";
 import { hasSupabaseEnv } from "@/lib/data";
+import { shopConfig } from "@/config/shop.config";
 import { getSupabaseServerClient } from "@/lib/supabase";
 import {
   availabilityRules,
@@ -37,6 +38,23 @@ export interface AffectedBooking {
 export interface SettingsDataSource {
   /** 全部分店(含停用;後台 Branches CRUD 用)依 sort_order → name */
   getAllBranches(): Promise<Branch[]>;
+  /** 新增分店(slug 唯一;timezone 取 shop.config 的事業時區) */
+  createBranch(input: {
+    name: string;
+    slug: string;
+    address?: string;
+    sortOrder?: number;
+  }): Promise<void>;
+  /**
+   * 更新分店。停用(is_active = false)只是讓它從前台選擇器與假日匯入消失,
+   * **不刪資料**(既有預約/資源仍在,老闆可再啟用)。
+   */
+  updateBranch(
+    id: string,
+    patch: Partial<
+      Pick<Branch, "name" | "slug" | "address" | "sort_order" | "is_active">
+    >,
+  ): Promise<void>;
   /** 課程為**共用型錄**,不分店 → 無 branchId 參數 */
   getAllCourses(): Promise<Course[]>;
   updateCourse(
@@ -45,6 +63,13 @@ export interface SettingsDataSource {
   ): Promise<void>;
   /** branchId 給值則只回該分店的資源(省略 = 全事業) */
   getAllResources(branchId?: string): Promise<Resource[]>;
+  /** 新增資源;**branchId 必填** —— 每個資源只屬於一間分店(PLAN §14) */
+  createResource(input: {
+    branchId: string;
+    name: string;
+    type: Resource["type"];
+    color?: string;
+  }): Promise<void>;
   updateResource(
     id: string,
     patch: Partial<Pick<Resource, "name" | "color" | "is_active">>,
@@ -97,10 +122,11 @@ export interface SettingsDataSource {
  *   1. 明給 branchId → 用它
  *   2. 否則有 resourceId → 取該資源的分店(0005 的 trigger 也會這樣帶,這裡先算出來
  *      是為了讓「分店級」與「資源級」走同一條路徑,且 demo 端沒有 trigger 可靠)
- *   3. 都沒有 → 第一間啟用分店
+ *   3. 兩者皆無 → 直接拒絕。
  *
- * TODO(branches-ui): Pass 2 的後台特殊日期頁會讓老闆明確選分店,屆時第 3 種情況
- * (預設分店)應該消失 —— 它只是為了讓 Pass 1 既有呼叫端不必改就能編譯 / 運作。
+ * 第 3 條在 Pass 1 曾退回「第一間啟用分店」;後台特殊日期頁現在一律明確帶分店
+ * (OverridesEditor 的分店 picker),所以這裡改成擋下 —— 猜錯分店會讓一間店莫名
+ * 公休,寧可報錯。
  */
 async function resolveOverrideBranchId(
   ds: SettingsDataSource,
@@ -114,9 +140,7 @@ async function resolveOverrideBranchId(
     if (!resource) throw new Error("resource_not_found");
     return resource.branch_id;
   }
-  const branch = (await ds.getAllBranches()).find((b) => b.is_active);
-  if (!branch) throw new Error("no_active_branch");
-  return branch.id;
+  throw new Error("branch_required");
 }
 
 // --- Supabase ----------------------------------------------------------------
@@ -130,6 +154,27 @@ const supabaseSettings: SettingsDataSource = {
       .order("name");
     if (error) throw new Error(error.message);
     return (data ?? []) as Branch[];
+  },
+
+  async createBranch(input) {
+    const { error } = await getSupabaseServerClient().from("branches").insert({
+      name: input.name,
+      slug: input.slug,
+      address: input.address ?? null,
+      // 分店時區 = 事業時區(台灣的分店一律 Asia/Taipei;欄位留著給未來跨時區用)
+      timezone: shopConfig.timezone,
+      sort_order: input.sortOrder ?? 0,
+      is_active: true,
+    });
+    if (error) throw new Error(error.message);
+  },
+
+  async updateBranch(id, patch) {
+    const { error } = await getSupabaseServerClient()
+      .from("branches")
+      .update(patch)
+      .eq("id", id);
+    if (error) throw new Error(error.message);
   },
 
   async getAllCourses() {
@@ -155,6 +200,17 @@ const supabaseSettings: SettingsDataSource = {
     const { data, error } = await q.order("name");
     if (error) throw new Error(error.message);
     return (data ?? []) as Resource[];
+  },
+
+  async createResource(input) {
+    const { error } = await getSupabaseServerClient().from("resources").insert({
+      branch_id: input.branchId,
+      type: input.type,
+      name: input.name,
+      color: input.color ?? null,
+      is_active: true,
+    });
+    if (error) throw new Error(error.message);
   },
 
   async updateResource(id, patch) {
@@ -373,12 +429,44 @@ let demoRules = [...availabilityRules];
 let demoOverrides = buildDateOverrides(DEMO_TODAY);
 let demoResourceCourses = resourceCourseLinks.map((l) => ({ ...l }));
 let ruleSeq = demoRules.length;
+// 後台新增的分店/資源沿用 demo-generator 的 id 命名規則往下接號(程序內有效,重啟 reset)
+let branchSeq = branches.length;
+let resourceSeq = resources.length;
 
 const demoSettings: SettingsDataSource = {
   async getAllBranches() {
     return [...branches].sort(
       (a, b) => a.sort_order - b.sort_order || a.name.localeCompare(b.name),
     );
+  },
+
+  async createBranch(input) {
+    if (branches.some((b) => b.slug === input.slug)) {
+      throw new Error("slug_taken"); // demo 端自行擋(真實後端靠 branches.slug unique)
+    }
+    const now = new Date().toISOString();
+    branchSeq += 1;
+    branches.push({
+      id: `00000000-0000-4000-8000-${String(branchSeq).padStart(12, "0")}`,
+      name: input.name,
+      slug: input.slug,
+      address: input.address ?? null,
+      timezone: shopConfig.timezone,
+      is_active: true,
+      sort_order: input.sortOrder ?? 0,
+      created_at: now,
+      updated_at: now,
+    });
+  },
+
+  async updateBranch(id, patch) {
+    const b = branches.find((x) => x.id === id);
+    if (!b) throw new Error("not_found");
+    if (patch.slug && branches.some((x) => x.slug === patch.slug && x.id !== id)) {
+      throw new Error("slug_taken");
+    }
+    Object.assign(b, patch);
+    b.updated_at = new Date().toISOString();
   },
 
   async getAllCourses() {
@@ -394,6 +482,26 @@ const demoSettings: SettingsDataSource = {
 
   async getAllResources(branchId) {
     return resources.filter((r) => !branchId || r.branch_id === branchId);
+  },
+
+  async createResource(input) {
+    if (!branches.some((b) => b.id === input.branchId)) {
+      throw new Error("branch_not_found");
+    }
+    const now = new Date().toISOString();
+    resourceSeq += 1;
+    resources.push({
+      id: `11111111-1111-4111-8111-${String(resourceSeq).padStart(12, "0")}`,
+      branch_id: input.branchId,
+      type: input.type,
+      name: input.name,
+      photo: null,
+      color: input.color ?? null,
+      is_active: true,
+      gcal_calendar_id: null,
+      created_at: now,
+      updated_at: now,
+    });
   },
 
   async updateResource(id, patch) {
