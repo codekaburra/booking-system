@@ -17,10 +17,29 @@
 | P7 | Google Calendar one-way push | ⬜ Not started | |
 | P8 | Instant mode B (time-range booking, anti-overlap) | ⬜ Not started | |
 
-## ⚠️ Next action (as of 2026-07-15)
+## ⚠️ Next action (as of 2026-07-18)
 
-**Build the BRANCHES (分店) feature** — see PLAN.md §14. This is the immediate priority,
-before P6/P8, because it adds `branch_id` to the schedule model those phases build on.
+Work queue, in order (each: developer → reviewer → commit):
+
+1. **Restyle /book Step ② to the Mode-A mobile picker** — design doc §8a (user-approved
+   screenshot): week date strip (selected day = `--color-primary-deep` pill, token already
+   committed) + vertical slot cards (尚餘 X 位 / 額滿 disabled) + sticky bottom bar with
+   preference chips (multi-preference KEPT, tick order = 志願序) + 下一步 CTA; month label
+   opens the existing MonthPicker as a jump-to-date popover (no longer always-visible).
+   Branch scoping from pass 2a must keep working.
+2. **Branches pass 2b (admin)** — branches CRUD screen; per-branch editing of resources/
+   hours/overrides (override forms pass branch_id — see TODO(branches-ui) in
+   `src/app/admin/settings/actions.ts`); inbox rows show branch; manual booking picks a
+   branch first.
+3. **Then P6** (reminders, self-cancel, slot generation cron, notifications log).
+4. P8 note: its booking UI is now specified — resource×time grid with per-cell peak/off-peak
+   pricing + estimated total (design doc §8b; needs a pricing-rules migration).
+
+### Branches (分店) status
+Pass 1 (`752b321`): 0005 schema + data layer + 2-branch seed/demo — done, verified 37/37+11/11.
+Pass 2a (`98908f7`): customer-side branch selector + branch-scoped timetable/book +
+salvaged DayResourceGrid (week/day toggle) — done, preview-verified.
+Pass 2b (admin): NOT started — item 2 above.
 
 ### Course correction that just happened (read this)
 Two local, unpushed commits (`8664383` two-shop demo, `067f3ef` URL shop routing) took the

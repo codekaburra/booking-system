@@ -380,7 +380,7 @@ Company Service Account (single credential)
 | **P5 Clients + settings** | Client signup/login + My bookings + services/resources/hours admin + **`resource_courses` editor** + **special dates (holiday import, leave/maintenance + conflict handling)** + client management. (`shop.config.ts` was already extracted in P1 — do **not** redo.) |
 | **P6 Polish** | Per-shop theming, mobile polish, **slot-generation cron + `completed` transition**, **notifications log table**, **pre-session reminders** (daily cron, "tomorrow's sessions"), **self-service cancellation (with policy)**, optional WhatsApp / LINE |
 | **P7 Calendar** | Google Calendar one-way push (resource + company calendars) |
-| **P8 Instant mode (Mode B)** | Start-time + duration booking, dynamic availability, anti-overlap transaction → self-service gym/pilates/yoga (payments become higher priority here) |
+| **P8 Instant mode (Mode B)** | Start-time + duration booking, dynamic availability, anti-overlap transaction → self-service gym/pilates/yoga/courts (payments become higher priority here). **UI = resource×time grid with per-cell pricing** (design doc §8b): rows = a branch's resources, columns = 30-min cells, contiguous-cell selection, **peak/off-peak pricing rules (new schema)** + estimated total summary. Optional branded landing page with embedded booking widget (later). |
 
 ---
 
