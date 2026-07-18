@@ -38,6 +38,12 @@
     var(--status-pending) 40%,
     #333333
   );
+
+  /* 主色深化(選中日 pill、志願序號圓標、主 CTA 的實底;白字需 ≥4.5:1)。
+     直接用 --color-primary 實底時白字對比不足(sage 3.4:1、冰川藍 3.0:1),
+     故衍生 50% 主色 / 50% #333333:sage → 4.85:1、冰川藍 → 5.96:1,皆過
+     WCAG AA。每店只覆寫 --color-primary,此 token 自動跟隨。 */
+  --color-primary-deep: color-mix(in srgb, var(--color-primary) 50%, #333333);
 }
 
 /* Tailwind v4 theme 對接:utility(bg-primary、text-status-full…)
