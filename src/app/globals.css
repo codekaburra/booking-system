@@ -50,6 +50,7 @@
    一律引用上方 CSS variables,元件內不 hardcode hex。 */
 @theme inline {
   --color-primary: var(--color-primary);
+  --color-primary-deep: var(--color-primary-deep);
   --color-secondary: var(--color-secondary);
   --color-bg: var(--color-bg);
   --color-surface: var(--color-surface);

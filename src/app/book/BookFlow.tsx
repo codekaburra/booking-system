@@ -1,24 +1,27 @@
 "use client";
 
 /**
- * 模式 A 預約流程(client;設計規範 booking-ui-extensions §4/§5/§7)。
+ * 模式 A 預約流程(client;設計規範 booking-ui-extensions §4/§5/§7/§8a)。
  *
- * 三步:① 選課程 → ② 勾多個志願時段(勾選順序=志願序,自動編號) → ③ 填資料。
+ * 三步:① 選課程 → ② 選多個志願時段(勾選順序=志願序,自動編號) → ③ 填資料。
+ * 步驟②為 §8a 手機直列式:單週日期橫條 + 時段直列卡片(SlotPicker)+
+ * 底部固定摘要列(志願 chips 可點移除 + 全寬「下一步」CTA)。
  * client 端驗證僅為即時提示;送出後由 server action 再驗一次(server 權威)。
  */
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { togglePreference } from "@/lib/booking/preferences";
 import { formatTwMobile, isValidTwMobile } from "@/lib/booking/phone";
+import { shortDateLabel } from "@/lib/tz";
 import type {
   BookableCourse,
   BookableSlot,
   CreateBookingInput,
 } from "@/lib/booking/types";
 import type { BookActionResult } from "./actions";
-import { MonthPicker } from "./MonthPicker";
+import { SlotPicker } from "./SlotPicker";
 
 type Field = "name" | "phone" | "slots" | "course";
 
@@ -67,7 +70,15 @@ export function BookFlow({
   const [result, setResult] = useState<BookActionResult | null>(null);
 
   const selectedCourse = courses.find((c) => c.id === courseId) ?? null;
-  const courseSlots = courseId ? slotsByCourse[courseId] ?? [] : [];
+  const courseSlots = useMemo(
+    () => (courseId ? slotsByCourse[courseId] ?? [] : []),
+    [courseId, slotsByCourse],
+  );
+  // 底部摘要列 chips 顯示用
+  const slotById = useMemo(
+    () => new Map(courseSlots.map((s) => [s.slotId, s])),
+    [courseSlots],
+  );
 
   function pickCourse(id: string) {
     if (id !== courseId) {
@@ -270,12 +281,12 @@ export function BookFlow({
         </section>
       )}
 
-      {/* 步驟 ②:勾選志願時段 */}
+      {/* 步驟 ②:選時段(§8a 手機直列式 + 底部固定摘要列) */}
       {step === 2 && (
         <section className="flex flex-col gap-4">
           <div className="flex items-center justify-between">
             <h2 className="text-sm font-medium text-muted">
-              ② 勾選志願時段
+              ② 選擇時段
               {selectedCourse && (
                 <span className="ml-2 text-text">{selectedCourse.name}</span>
               )}
@@ -283,7 +294,7 @@ export function BookFlow({
             <span className="text-xs text-muted">已選 {selected.length} 個</span>
           </div>
           <p className="text-xs text-muted">
-            點月曆上有位的日期,勾選當日時段;可跨日跨月複選,勾選順序即為志願序(1、2、3…)。
+            點日期看當天時段;可跨日複選,勾選順序即為志願序(1、2、3…)。點右上月份可跳到其他週。
           </p>
           {fieldErrors.slots && (
             <p className="text-sm text-status-full-strong">{fieldErrors.slots}</p>
@@ -294,7 +305,8 @@ export function BookFlow({
               此課程目前沒有可預約的時段,請改選其他課程或查看週課表。
             </div>
           ) : (
-            <MonthPicker
+            <SlotPicker
+              key={courseId}
               slots={courseSlots}
               selected={selected}
               onToggle={toggleSlot}
@@ -302,22 +314,66 @@ export function BookFlow({
             />
           )}
 
-          <div className="flex items-center justify-between gap-3 pt-2">
-            <button
-              type="button"
-              onClick={() => setStep(1)}
-              className="rounded-full border border-border bg-surface px-5 py-2.5 text-sm text-text hover:border-primary hover:text-primary"
-            >
-              上一步
-            </button>
-            <button
-              type="button"
-              disabled={selected.length === 0}
-              onClick={() => setStep(3)}
-              className="rounded-full bg-primary px-6 py-2.5 text-sm font-medium text-surface transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              下一步(填資料)
-            </button>
+          {/* 底部固定摘要列:志願 chips(點移除,序號自動遞補)+ 全寬 CTA(§8a) */}
+          {/* 不用 backdrop-blur:近全不透明底就夠,且 blur 在部分 Chromium 有合成 bug */}
+          <div className="sticky bottom-0 z-10 -mx-4 border-t border-border bg-bg px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 sm:-mx-6 sm:px-6">
+            {selected.length > 0 ? (
+              <ol
+                aria-label="已選志願(點擊移除)"
+                className="mb-2 flex items-center gap-2 overflow-x-auto pb-1"
+              >
+                {selected.map((id, i) => {
+                  const s = slotById.get(id);
+                  if (!s) return null;
+                  return (
+                    <li key={id} className="shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => toggleSlot(id)}
+                        aria-label={`移除第 ${i + 1} 志願:${s.dayLabel} ${s.timeLabel}`}
+                        className="flex min-h-11 items-center gap-1.5 whitespace-nowrap rounded-full border border-primary/40 bg-primary/10 px-3 text-xs font-medium text-text transition hover:border-status-full hover:bg-status-full/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                      >
+                        <span
+                          aria-hidden
+                          className="flex h-5 w-5 items-center justify-center rounded-full bg-primary-deep text-[10px] font-semibold text-surface"
+                        >
+                          {i + 1}
+                        </span>
+                        {/* 開始時間用結構化 startMin 組字,不依賴 timeLabel 的字串格式 */}
+                        {shortDateLabel(s.date)}{" "}
+                        {`${String(Math.floor(s.startMin / 60)).padStart(2, "0")}:${String(
+                          s.startMin % 60,
+                        ).padStart(2, "0")}`}
+                        <span aria-hidden className="text-muted">
+                          ✕
+                        </span>
+                      </button>
+                    </li>
+                  );
+                })}
+              </ol>
+            ) : (
+              <p className="mb-2 text-xs text-muted">
+                尚未選擇時段 —— 點上方卡片可複選,順序即志願序。
+              </p>
+            )}
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => setStep(1)}
+                className="min-h-12 rounded-full border border-border bg-surface px-5 text-sm text-text hover:border-primary hover:text-primary"
+              >
+                上一步
+              </button>
+              <button
+                type="button"
+                disabled={selected.length === 0}
+                onClick={() => setStep(3)}
+                className="min-h-12 flex-1 rounded-full bg-primary-deep px-6 text-sm font-medium text-surface transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                下一步(填資料)
+              </button>
+            </div>
           </div>
         </section>
       )}
