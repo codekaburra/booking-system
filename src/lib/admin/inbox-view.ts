@@ -5,6 +5,7 @@
 import { toBookableSlot } from "@/lib/booking/slot-view";
 import type {
   BookingRequest,
+  Branch,
   Client,
   Course,
   RequestSlot,
@@ -20,6 +21,7 @@ export function buildInboxItem(
   prefs: RequestSlot[],
   slots: Slot[],
   resources: Resource[],
+  branchesById?: Map<string, Branch>,
 ): InboxItem {
   const slotById = new Map(slots.map((s) => [s.id, s]));
   const resourceById = new Map(resources.map((r) => [r.id, r]));
@@ -103,6 +105,7 @@ export function buildInboxItem(
     clientEmail: client.email,
     unreachable,
     courseName: course.name,
+    branchName: branchesById?.get(req.branch_id)?.name ?? "—",
     note: req.note,
     notifyChannel: req.notify_channel,
     createdAt: req.created_at,

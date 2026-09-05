@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { getAdminSession } from "@/lib/auth/admin";
 
 const links = [
+  { href: "/admin/settings/branches", label: "分店管理", desc: "分店名稱、識別碼、啟用狀態" },
   { href: "/admin/settings/courses", label: "課程 / 服務", desc: "時長、容量、價格" },
   { href: "/admin/settings/resources", label: "資源管理", desc: "教練/房間、可開課程、每週開放時間" },
   { href: "/admin/settings/overrides", label: "特殊日期", desc: "國定假日、請假、加開" },

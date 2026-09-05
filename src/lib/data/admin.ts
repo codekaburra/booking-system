@@ -6,6 +6,7 @@ import "server-only";
 
 import type {
   BookingRequest,
+  Branch,
   Client,
   Course,
   RequestSlot,
@@ -27,6 +28,7 @@ import {
 } from "@/lib/data/demo-store";
 import {
   availabilityRules,
+  branches,
   buildDateOverrides,
   courses,
   resources,
@@ -88,11 +90,13 @@ const supabaseAdmin: AdminDataSource = {
     const courseIds = [...new Set(reqs.map((r) => r.course_id))];
     const reqIds = reqs.map((r) => r.id);
 
-    const [clients, courseRows, prefRows, resources] = await Promise.all([
+    const [clients, courseRows, prefRows, resources, branchRows] = await Promise.all([
       getSupabaseServerClient().from("clients").select("*").in("id", clientIds),
       getSupabaseServerClient().from("courses").select("*").in("id", courseIds),
       getSupabaseServerClient().from("request_slots").select("*").in("request_id", reqIds),
       getDataSource().then((ds) => ds.getResources()),
+      // 直接查表(含停用分店):停用分店的既有預約仍要標得出店名
+      getSupabaseServerClient().from("branches").select("*"),
     ]);
 
     const slotIds = [...new Set((prefRows.data ?? []).map((p) => p.slot_id))];
@@ -117,6 +121,7 @@ const supabaseAdmin: AdminDataSource = {
         prefsByReq.get(req.id) ?? [],
         (slotRows ?? []) as Slot[],
         resources,
+        new Map(((branchRows.data ?? []) as Branch[]).map((b) => [b.id, b])),
       ),
     );
   },
@@ -278,6 +283,7 @@ const demoAdmin: AdminDataSource = {
         prefs.filter((p) => p.request_id === req.id),
         demoSlots,
         activeResources,
+        new Map(branches.map((b) => [b.id, b])),
       ),
     );
   },

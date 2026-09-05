@@ -71,6 +71,11 @@ export function InboxList({ items, mode }: Props) {
                   {mode === "pending" ? "待確認" : "已確認"}
                 </span>
                 <span className="font-mono text-sm">{item.bookingId}</span>
+                {/* 分店標示(跨分店收件匣;中性 chip,非狀態色) */}
+                <span className="inline-flex items-center gap-1 rounded-full border border-border px-2 py-0.5 text-xs text-muted">
+                  <span aria-hidden>🏠</span>
+                  {item.branchName}
+                </span>
               </div>
               <p className="mt-2 text-sm font-medium">
                 {item.clientName} · {item.courseName}

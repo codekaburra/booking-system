@@ -15,6 +15,8 @@ export interface InboxItem {
   /** 無法 email 通知時 true(P4 標示) */
   unreachable: boolean;
   courseName: string;
+  /** 分店名稱(收件匣跨分店 → 每列標示所屬分店) */
+  branchName: string;
   note: string | null;
   notifyChannel: NotifyChannel | null;
   createdAt: string;
