@@ -5,17 +5,27 @@
 
 ## Status
 
-| Phase | Scope | Status | Branch / Commit |
-|---|---|---|---|
-| P0 | Planning docs | ✅ Done | `main` `70e6715` |
-| P1 | Scaffold + 8-table schema + seed | ✅ Done (reviewed + fixed) | `p1-project-scaffold` `26f77e7`+`fc7d889` → [PR #1](https://github.com/codekaburra/booking-system/pull/1) (open) |
-| P2 | Weekly timetable (shop/resource views, RWD, overrides) | ✅ Done (reviewed + fixed) | `p2-timetable` (stacked on P1) |
-| P3 | Booking form (Mode A multi-preference) + client dedup + status page | ✅ Done (reviewed + fixed) | `p3-booking-form` |
-| P4 | Admin core (auth, approval w/ overbooking guard, email, manual booking/cancel) | ✅ Done | `p4-admin-core` |
-| P5 | Client login + My bookings + settings admin + special dates | ✅ Done | `p5-client-settings` |
-| P6 | Polish (reminders, self-cancel, slot generation cron, channels) | ⬜ Not started | |
-| P7 | Google Calendar one-way push | ⬜ Not started | |
-| P8 | Instant mode B (time-range booking, anti-overlap) | ⬜ Not started | |
+**All work is now merged to `main`** (fast-forward at `8de258b`, 2026-09-06). PR #1 auto-resolved
+as merged. The old per-phase branches (p1..p5, feat-branches) are historical — **branch off `main`
+from now on.**
+
+| Phase | Scope | Status |
+|---|---|---|
+| P0–P1 | Planning; scaffold + 8-table schema + seed | ✅ Done, on main |
+| P2 | Weekly timetable (shop/resource views, RWD, overrides) | ✅ Done, on main |
+| P3 | Booking form (Mode A multi-preference) + client dedup + status page | ✅ Done, on main |
+| P3.5 | /book Step ② restyle to §8a week-strip picker | ✅ Done, on main (`3c70ddf`) |
+| P4 | Admin core (auth, approval w/ overbooking guard, email, manual booking/cancel) | ✅ Done, on main |
+| P5 | Client login + My bookings + settings admin + special dates | ✅ Done, on main |
+| Branches | 分店: schema + data layer + customer UI + admin CRUD + inbox labels | ✅ Done, on main (`8de258b`); **remaining: per-branch editing of resources/hours/overrides + manual-booking branch pick** |
+| P6 | Polish (reminders, self-cancel, slot generation cron, notifications log) | ⬜ Not started |
+| P7 | Google Calendar one-way push (needs user's Google Workspace + service account) | ⬜ Not started |
+| P8 | Instant mode B (resource×time grid + peak/off-peak pricing — design §8b) | ⬜ Not started |
+
+### Blocked on the user (can't be done in-code)
+- **Supabase project** — everything runs in demo mode (mock data); no real DB/auth yet.
+- **Vercel deploy** — not deployed.
+- **P7** needs a Google Workspace + service-account credential; **P8** needs a payment provider choice.
 
 ## ⚠️ Next action (as of 2026-07-18)
 
